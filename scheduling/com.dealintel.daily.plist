@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Label must match filename -->
+    <key>Label</key>
+    <string>com.dealintel.daily</string>
+
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Update this path to your actual project location -->
+        <string>/path/to/deal-intel/.venv/bin/dealintel</string>
+        <string>run</string>
+    </array>
+
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <!-- Update this path to your actual project location -->
+    <string>/path/to/deal-intel</string>
+
+    <!-- Schedule: Run daily at 10:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>10</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <!-- Update this path to your actual project location -->
+    <string>/path/to/deal-intel/logs/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <!-- Update this path to your actual project location -->
+    <string>/path/to/deal-intel/logs/launchd.err</string>
+
+    <!-- Run at load if missed -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Keep alive settings -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Nice value (lower priority) -->
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>

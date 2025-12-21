@@ -1,0 +1,17 @@
+Store: Example Store
+Subject: Weekly Newsletter - What's New This Week
+Date: 2024-12-20 09:00
+
+Hi there!
+
+Here's what's happening this week at Example Store:
+
+- New arrivals are here
+- Check out our blog post on winter trends
+- Follow us on social media
+
+Thanks for being a subscriber!
+
+Top Links:
+- https://example.com/blog
+- https://example.com/new-arrivals

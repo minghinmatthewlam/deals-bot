@@ -1,0 +1,92 @@
+[project]
+name = "dealintel"
+version = "0.1.0"
+description = "Deal Intelligence - Promotional email ingestion and digest generation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+dependencies = [
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "psycopg[binary]>=3.1.0",
+
+    # Gmail API
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.2.0",
+
+    # OpenAI (structured outputs support critical)
+    "openai>=1.12.0",
+
+    # Email sending
+    "sendgrid>=6.10.0",
+
+    # Schema validation
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # CLI
+    "typer[all]>=0.9.0",
+
+    # Email parsing
+    "beautifulsoup4>=4.12.0",
+    "html2text>=2024.2.26",
+
+    # Templating
+    "jinja2>=3.1.0",
+
+    # Fuzzy string matching for promo dedup
+    "rapidfuzz>=3.6.0",
+
+    # Logging
+    "structlog>=24.1.0",
+
+    # Retry logic
+    "tenacity>=8.2.0",
+
+    # Timezone handling
+    "pytz>=2024.1",
+
+    # Date parsing
+    "python-dateutil>=2.8.0",
+
+    # YAML parsing
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+dealintel = "dealintel.cli:app"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=dealintel --cov-report=term-missing"

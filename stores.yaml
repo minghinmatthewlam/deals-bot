@@ -1,0 +1,78 @@
+# Store definitions for Deal Intelligence
+# Add your store sources here to match incoming emails
+
+stores:
+  # Example: Nike
+  - slug: nike
+    name: Nike
+    website_url: https://nike.com
+    category: apparel
+    sources:
+      - type: gmail_from_address
+        pattern: nike@email.nike.com
+        priority: 100
+      - type: gmail_from_domain
+        pattern: nike.com
+        priority: 50
+
+  # Example: REI
+  - slug: rei
+    name: REI
+    website_url: https://rei.com
+    category: outdoor
+    sources:
+      - type: gmail_from_address
+        pattern: rei@em.rei.com
+        priority: 100
+      - type: gmail_from_domain
+        pattern: rei.com
+        priority: 50
+
+  # Example: Backcountry
+  - slug: backcountry
+    name: Backcountry
+    website_url: https://backcountry.com
+    category: outdoor
+    sources:
+      - type: gmail_from_address
+        pattern: noreply@e.backcountry.com
+        priority: 100
+      - type: gmail_from_domain
+        pattern: backcountry.com
+        priority: 50
+
+  # Example: Patagonia
+  - slug: patagonia
+    name: Patagonia
+    website_url: https://patagonia.com
+    category: apparel
+    sources:
+      - type: gmail_from_domain
+        pattern: patagonia.com
+        priority: 50
+
+  # Example: The North Face
+  - slug: northface
+    name: The North Face
+    website_url: https://thenorthface.com
+    category: apparel
+    sources:
+      - type: gmail_from_domain
+        pattern: thenorthface.com
+        priority: 50
+      - type: gmail_from_domain
+        pattern: email.thenorthface.com
+        priority: 60
+
+# Add more stores as needed by following this pattern:
+# - slug: unique-identifier (lowercase, hyphens)
+#   name: Display Name
+#   website_url: https://example.com
+#   category: category-name
+#   sources:
+#     - type: gmail_from_address  # Exact email match (higher priority)
+#       pattern: email@domain.com
+#       priority: 100
+#     - type: gmail_from_domain   # Domain match (fallback)
+#       pattern: domain.com
+#       priority: 50

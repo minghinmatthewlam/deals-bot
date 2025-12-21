@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dealintel-db
+    environment:
+      POSTGRES_USER: dealintel
+      POSTGRES_PASSWORD: dealintel_dev
+      POSTGRES_DB: dealintel
+    ports:
+      - "5432:5432"
+    volumes:
+      - dealintel_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dealintel"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dealintel_data:

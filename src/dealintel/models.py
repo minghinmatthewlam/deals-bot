@@ -1,0 +1,198 @@
+"""SQLAlchemy ORM models."""
+
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    pass
+
+
+class Store(Base):
+    """Retailer/brand that sends promotional emails."""
+
+    __tablename__ = "stores"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    website_url: Mapped[Optional[str]] = mapped_column(String(500))
+    category: Mapped[Optional[str]] = mapped_column(String(100))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    sources: Mapped[list["StoreSource"]] = relationship(back_populates="store", cascade="all, delete-orphan")
+    emails: Mapped[list["EmailRaw"]] = relationship(back_populates="store")
+    promos: Mapped[list["Promo"]] = relationship(back_populates="store", cascade="all, delete-orphan")
+
+
+class StoreSource(Base):
+    """Email matching rules for stores."""
+
+    __tablename__ = "store_sources"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    store_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"))
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)  # gmail_from_address, gmail_from_domain
+    pattern: Mapped[str] = mapped_column(String(500), nullable=False)
+    priority: Mapped[int] = mapped_column(default=100)  # Higher wins
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    store: Mapped["Store"] = relationship(back_populates="sources")
+
+    __table_args__ = (UniqueConstraint("store_id", "source_type", "pattern"),)
+
+
+class GmailState(Base):
+    """Gmail sync cursor state."""
+
+    __tablename__ = "gmail_state"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    last_history_id: Mapped[Optional[str]] = mapped_column(String(100))
+    last_full_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class EmailRaw(Base):
+    """Raw ingested emails."""
+
+    __tablename__ = "emails_raw"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    gmail_message_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    gmail_thread_id: Mapped[Optional[str]] = mapped_column(String(100))
+    store_id: Mapped[Optional[UUID]] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
+    from_address: Mapped[str] = mapped_column(String(500), nullable=False)
+    from_domain: Mapped[str] = mapped_column(String(255), nullable=False)
+    from_name: Mapped[Optional[str]] = mapped_column(String(500))
+    subject: Mapped[str] = mapped_column(String(1000), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    body_text: Mapped[Optional[str]] = mapped_column(Text)
+    body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    top_links: Mapped[Optional[dict]] = mapped_column(JSONB)
+    extraction_status: Mapped[str] = mapped_column(String(20), default="pending")
+    extraction_error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    store: Mapped[Optional["Store"]] = relationship(back_populates="emails")
+    extraction: Mapped[Optional["PromoExtraction"]] = relationship(back_populates="email", uselist=False)
+    promo_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="email")
+    promo_changes: Mapped[list["PromoChange"]] = relationship(back_populates="email")
+
+
+class PromoExtraction(Base):
+    """Raw LLM extraction output for audit/debugging."""
+
+    __tablename__ = "promo_extractions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"), unique=True)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    extracted_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    email: Mapped["EmailRaw"] = relationship(back_populates="extraction")
+
+
+class Promo(Base):
+    """Canonical promotional offers."""
+
+    __tablename__ = "promos"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    store_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    base_key: Mapped[str] = mapped_column(String(500), nullable=False)  # Dedup key
+    headline: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+    discount_text: Mapped[Optional[str]] = mapped_column(String(500))
+    percent_off: Mapped[Optional[float]] = mapped_column(Float)
+    amount_off: Mapped[Optional[float]] = mapped_column(Float)
+    code: Mapped[Optional[str]] = mapped_column(String(100))
+    starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    end_inferred: Mapped[bool] = mapped_column(Boolean, default=False)
+    exclusions: Mapped[Optional[str]] = mapped_column(Text)
+    landing_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active/expired/unknown
+    last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    store: Mapped["Store"] = relationship(back_populates="promos")
+    email_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
+    changes: Mapped[list["PromoChange"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("store_id", "base_key"),
+        Index("ix_promos_ends_at", "ends_at"),
+        Index("ix_promos_last_seen_at", "last_seen_at"),
+    )
+
+
+class PromoEmailLink(Base):
+    """Many-to-many link between promos and source emails."""
+
+    __tablename__ = "promo_email_links"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    promo_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"))
+    email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"))
+
+    promo: Mapped["Promo"] = relationship(back_populates="email_links")
+    email: Mapped["EmailRaw"] = relationship(back_populates="promo_links")
+
+    __table_args__ = (UniqueConstraint("promo_id", "email_id"),)
+
+
+class PromoChange(Base):
+    """Change tracking for NEW/UPDATED badges in digest."""
+
+    __tablename__ = "promo_changes"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    promo_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"))
+    email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"))
+    change_type: Mapped[str] = mapped_column(String(50), nullable=False)  # created, discount_changed, end_extended, code_added, etc.
+    diff_json: Mapped[dict] = mapped_column(JSONB, default={})
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    promo: Mapped["Promo"] = relationship(back_populates="changes")
+    email: Mapped["EmailRaw"] = relationship(back_populates="promo_changes")
+
+    __table_args__ = (
+        UniqueConstraint("promo_id", "email_id", "change_type"),
+        Index("ix_promo_changes_changed_at", "changed_at"),
+    )
+
+
+class Run(Base):
+    """Pipeline run tracking for idempotency."""
+
+    __tablename__ = "runs"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    run_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    digest_date_et: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
+    digest_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    digest_provider_id: Mapped[Optional[str]] = mapped_column(String(100))
+    gmail_cursor_history_id: Mapped[Optional[str]] = mapped_column(String(100))
+    stats_json: Mapped[dict] = mapped_column(JSONB, default={})
+    error_json: Mapped[dict] = mapped_column(JSONB, default={})
+
+    __table_args__ = (UniqueConstraint("run_type", "digest_date_et"),)  # Prevents double-send

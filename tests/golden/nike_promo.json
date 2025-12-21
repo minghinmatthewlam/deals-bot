@@ -1,0 +1,13 @@
+{
+  "is_promo_email": true,
+  "promos": [
+    {
+      "headline": "30% Off Select Styles",
+      "discount_text": "30% off",
+      "percent_off": 30.0,
+      "code": "MEMBER30",
+      "landing_url": "https://nike.com/sale"
+    }
+  ],
+  "notes": []
+}
