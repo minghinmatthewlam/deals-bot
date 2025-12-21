@@ -64,6 +64,29 @@ stores:
         pattern: email.thenorthface.com
         priority: 60
 
+  # COS
+  - slug: cos
+    name: COS
+    website_url: https://cos.com
+    category: apparel
+    sources:
+      - type: gmail_from_domain
+        pattern: cosstores.com
+        priority: 50
+      - type: gmail_from_domain
+        pattern: cos.com
+        priority: 50
+
+  # Corridor NYC
+  - slug: corridor
+    name: Corridor
+    website_url: https://corridornyc.com
+    category: apparel
+    sources:
+      - type: gmail_from_domain
+        pattern: corridornyc.com
+        priority: 50
+
 # Add more stores as needed by following this pattern:
 # - slug: unique-identifier (lowercase, hyphens)
 #   name: Display Name
