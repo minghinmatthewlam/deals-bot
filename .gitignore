@@ -1,0 +1,40 @@
+# Environment
+.env
+.env.local
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Secrets - NEVER commit these
+credentials.json
+token.json
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Digest previews (generated in dry-run mode)
+digest_preview.html
