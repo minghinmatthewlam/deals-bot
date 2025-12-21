@@ -38,3 +38,6 @@ htmlcov/
 
 # Digest previews (generated in dry-run mode)
 digest_preview.html
+
+# Beads backlog (local only)
+.beads/
