@@ -70,11 +70,11 @@ stores:
     website_url: https://cos.com
     category: apparel
     sources:
+      - type: gmail_from_address
+        pattern: news@us.e.cos.com
+        priority: 100
       - type: gmail_from_domain
-        pattern: cosstores.com
-        priority: 50
-      - type: gmail_from_domain
-        pattern: cos.com
+        pattern: us.e.cos.com
         priority: 50
 
   # Corridor NYC
@@ -83,8 +83,37 @@ stores:
     website_url: https://corridornyc.com
     category: apparel
     sources:
+      - type: gmail_from_address
+        pattern: info@corridornyc.com
+        priority: 100
       - type: gmail_from_domain
         pattern: corridornyc.com
+        priority: 50
+
+  # Resy
+  - slug: resy
+    name: Resy
+    website_url: https://resy.com
+    category: dining
+    sources:
+      - type: gmail_from_address
+        pattern: noreply@resy.com
+        priority: 100
+      - type: gmail_from_domain
+        pattern: resy.com
+        priority: 50
+
+  # Bankless
+  - slug: bankless
+    name: Bankless
+    website_url: https://bankless.com
+    category: crypto
+    sources:
+      - type: gmail_from_address
+        pattern: team@bankless.com
+        priority: 100
+      - type: gmail_from_domain
+        pattern: bankless.com
         priority: 50
 
 # Add more stores as needed by following this pattern:

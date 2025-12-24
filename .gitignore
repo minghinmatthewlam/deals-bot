@@ -41,3 +41,6 @@ digest_preview.html
 
 # Beads backlog (local only)
 .beads/
+
+# bv (beads viewer) local config and caches
+.bv/
