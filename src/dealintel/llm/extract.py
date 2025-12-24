@@ -1,5 +1,7 @@
 """OpenAI extraction using structured outputs."""
 
+import re
+
 import structlog
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -76,8 +78,8 @@ def _filter_flight_promos(result: ExtractionResult) -> ExtractionResult:
     """Filter flight promos against preferences, keeping non-flight promos untouched."""
     prefs = load_preferences()
     preferred_origins = {origin.strip().upper() for origin in prefs.flights.origins if origin}
-    preferred_regions = {region.strip().lower() for region in prefs.flights.destination_regions if region}
-    max_price_by_region = {region.lower(): price for region, price in prefs.flights.max_price_usd.items()}
+    preferred_regions = {_normalize_region(region) for region in prefs.flights.destination_regions if region}
+    max_price_by_region = {_normalize_region(region): price for region, price in prefs.flights.max_price_usd.items()}
 
     filtered = []
     for promo in result.promos:
@@ -93,13 +95,13 @@ def _filter_flight_promos(result: ExtractionResult) -> ExtractionResult:
             if flight_origins.isdisjoint(preferred_origins):
                 continue
 
-        if preferred_regions and flight.destination_region:
-            if flight.destination_region.strip().lower() not in preferred_regions:
-                continue
+        normalized_region = _normalize_region(flight.destination_region) if flight.destination_region else ""
 
-        if flight.price_usd is not None and flight.destination_region:
-            region_key = flight.destination_region.strip().lower()
-            max_price = max_price_by_region.get(region_key)
+        if preferred_regions and normalized_region and normalized_region not in preferred_regions:
+            continue
+
+        if flight.price_usd is not None and normalized_region:
+            max_price = max_price_by_region.get(normalized_region)
             if max_price is not None and flight.price_usd > max_price:
                 continue
 
@@ -113,6 +115,28 @@ def _filter_flight_promos(result: ExtractionResult) -> ExtractionResult:
         )
 
     return result.model_copy(update={"promos": filtered})
+
+
+def _normalize_region(value: str) -> str:
+    if not value:
+        return ""
+
+    normalized = re.sub(r"\\s+", " ", value.strip().lower())
+    if "europe" in normalized:
+        return "europe"
+    if "asia" in normalized:
+        return "asia"
+    if "north america" in normalized:
+        return "north america"
+    if "south america" in normalized or "latin america" in normalized:
+        return "south america"
+    if "middle east" in normalized:
+        return "middle east"
+    if "africa" in normalized:
+        return "africa"
+    if "oceania" in normalized or "australia" in normalized or "new zealand" in normalized:
+        return "oceania"
+    return normalized
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))

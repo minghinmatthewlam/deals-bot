@@ -1,11 +1,13 @@
 """Specialized parser for e-commerce sale pages."""
 
+import re
 from dataclasses import dataclass
 
 import structlog
 from bs4 import BeautifulSoup, Tag
 
 logger = structlog.get_logger()
+PRICE_PATTERN = re.compile(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+(?:\.\d{2})?)")
 
 
 @dataclass
@@ -126,12 +128,15 @@ def _sample_products(soup: BeautifulSoup, limit: int = 10) -> list[ProductSample
             if not name or len(name) > 100:
                 continue
 
+            original_price, sale_price = _extract_prices(product)
+            discount_percent = _compute_discount_percent(original_price, sale_price)
+
             samples.append(
                 ProductSample(
                     name=name,
-                    original_price=None,
-                    sale_price=None,
-                    discount_percent=None,
+                    original_price=original_price,
+                    sale_price=sale_price,
+                    discount_percent=discount_percent,
                 )
             )
         except Exception:
@@ -139,3 +144,73 @@ def _sample_products(soup: BeautifulSoup, limit: int = 10) -> list[ProductSample
             continue
 
     return samples
+
+
+def _extract_prices(product: Tag) -> tuple[float | None, float | None]:
+    """Extract original and sale prices from product tile text/classes."""
+    original_candidates: list[float] = []
+    sale_candidates: list[float] = []
+    all_prices: list[float] = []
+
+    price_elements = product.select(
+        "[class*='price'], [class*='Price'], [class*='amount'], .price, s, del"
+    )
+
+    for element in price_elements:
+        text = element.get_text(" ", strip=True)
+        if not text:
+            continue
+
+        prices = _parse_prices(text)
+        if not prices:
+            continue
+
+        all_prices.extend(prices)
+
+        class_attr = " ".join(element.get("class") or []).lower()
+        if element.name in {"s", "del"} or any(token in class_attr for token in ("original", "compare", "was", "old")):
+            original_candidates.extend(prices)
+        elif any(token in class_attr for token in ("sale", "current", "now", "discount")):
+            sale_candidates.extend(prices)
+
+    if original_candidates or sale_candidates:
+        original = max(original_candidates) if original_candidates else None
+        sale = min(sale_candidates) if sale_candidates else None
+        if sale is None and original is not None and len(all_prices) >= 2:
+            sale = min(all_prices)
+        if original is None and sale is not None and len(all_prices) >= 2:
+            original = max(all_prices)
+    else:
+        if len(all_prices) >= 2:
+            original = max(all_prices)
+            sale = min(all_prices)
+        elif len(all_prices) == 1:
+            original = None
+            sale = all_prices[0]
+        else:
+            return None, None
+
+    if original is not None and sale is not None and sale > original:
+        original, sale = sale, original
+
+    return original, sale
+
+
+def _parse_prices(text: str) -> list[float]:
+    matches = PRICE_PATTERN.findall(text)
+    prices: list[float] = []
+    for match in matches:
+        normalized = match.replace(",", "")
+        try:
+            prices.append(float(normalized))
+        except ValueError:
+            continue
+    return prices
+
+
+def _compute_discount_percent(original: float | None, sale: float | None) -> int | None:
+    if original is None or sale is None or original <= 0:
+        return None
+    if sale > original:
+        return None
+    return int(round((1 - (sale / original)) * 100))
