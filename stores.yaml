@@ -129,7 +129,7 @@ stores:
     category: travel
     sources:
       - type: web_url
-        pattern: https://secretflying.com/posts/
+        pattern: https://secretflying.com/feed/
         priority: 100
 
   # United Airlines
