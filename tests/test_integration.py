@@ -21,8 +21,19 @@ class TestPipelineIntegration:
                 with patch("dealintel.jobs.daily.release_advisory_lock"):
                     with patch("dealintel.jobs.daily.seed_stores"):
                         with patch(
-                            "dealintel.jobs.daily.ingest_emails",
-                            return_value={"fetched": 0, "new": 0, "matched": 0, "unmatched": 0},
+                            "dealintel.jobs.daily.ingest_all_sources",
+                            return_value={
+                                "gmail": {
+                                    "enabled": True,
+                                    "fetched": 0,
+                                    "new": 0,
+                                    "matched": 0,
+                                    "unmatched": 0,
+                                    "errors": 0,
+                                },
+                                "web": {"enabled": False},
+                                "inbound": {"enabled": False},
+                            },
                         ):
                             with patch(
                                 "dealintel.jobs.daily.process_pending_emails",

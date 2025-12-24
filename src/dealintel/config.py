@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     sender_email: str
     recipient_email: str
 
+    # Source toggles
+    ingest_gmail: bool = False
+    ingest_web: bool = True
+    ingest_inbound: bool = False
+
     # Gmail OAuth
     gmail_credentials_path: str = "credentials.json"
     gmail_token_path: str = "token.json"

@@ -94,11 +94,29 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
         table.add_column("Value", style="green")
 
         # Ingest stats
-        if stats.get("ingest"):
-            table.add_row("Ingest", "Fetched", str(stats["ingest"].get("fetched", 0)))
-            table.add_row("", "New", str(stats["ingest"].get("new", 0)))
-            table.add_row("", "Matched", str(stats["ingest"].get("matched", 0)))
-            table.add_row("", "Unmatched", str(stats["ingest"].get("unmatched", 0)))
+        ingest = stats.get("ingest") or {}
+        if ingest:
+            metric_order = (
+                "sources",
+                "files",
+                "fetched",
+                "new",
+                "matched",
+                "unmatched",
+                "skipped",
+                "unchanged",
+                "errors",
+            )
+            for source_name, source_stats in ingest.items():
+                if not isinstance(source_stats, dict):
+                    continue
+                enabled = source_stats.get("enabled", True)
+                table.add_row("Ingest", source_name, "enabled" if enabled else "disabled")
+                if not enabled:
+                    continue
+                for metric in metric_order:
+                    if metric in source_stats:
+                        table.add_row("", f"  {metric}", str(source_stats[metric]))
 
         # Extract stats
         if stats.get("extract"):

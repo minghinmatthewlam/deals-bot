@@ -39,6 +39,9 @@ htmlcov/
 # Digest previews (generated in dry-run mode)
 digest_preview.html
 
+# Inbound .eml directory (local only)
+inbound_eml/
+
 # Beads backlog (local only)
 .beads/
 

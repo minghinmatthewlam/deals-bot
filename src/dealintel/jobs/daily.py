@@ -9,7 +9,7 @@ import structlog
 
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
 from dealintel.digest.render import generate_digest
-from dealintel.gmail.ingest import ingest_emails
+from dealintel.ingest.router import ingest_all_sources
 from dealintel.llm.extract import extract_promos
 from dealintel.models import EmailRaw, PromoExtraction, Run
 from dealintel.outbound.sendgrid_client import send_digest_email
@@ -117,7 +117,7 @@ def run_daily_pipeline(dry_run: bool = False) -> dict[str, Any]:
 
             # 4. Ingest emails
             logger.info("Ingesting emails...")
-            stats["ingest"] = ingest_emails()
+            stats["ingest"] = ingest_all_sources()
             logger.info("Emails ingested", **stats["ingest"])
 
             # 5. Extract promos
