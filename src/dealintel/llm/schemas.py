@@ -3,6 +3,17 @@
 from pydantic import BaseModel, Field
 
 
+class FlightDeal(BaseModel):
+    """Flight-specific deal information."""
+
+    origins: list[str] = Field(default_factory=list)
+    destinations: list[str] = Field(default_factory=list)
+    destination_region: str | None = None
+    price_usd: float | None = None
+    travel_window: str | None = None
+    booking_url: str | None = None
+
+
 class PromoCandidate(BaseModel):
     """A promotional offer extracted from an email."""
 
@@ -19,6 +30,8 @@ class PromoCandidate(BaseModel):
     landing_url: str | None = Field(None, description="URL to shop the promo")
     confidence: float = Field(0.5, ge=0, le=1, description="Extraction confidence (0-1)")
     missing_fields: list[str] = Field(default_factory=list, description="Fields that couldn't be extracted")
+    vertical: str = Field("retail", description="retail|flight|other")
+    flight: FlightDeal | None = None
 
 
 class ExtractionResult(BaseModel):

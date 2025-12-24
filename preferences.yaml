@@ -1,0 +1,6 @@
+flights:
+  origins: ["SFO", "OAK", "SJC"]
+  destination_regions: ["Europe", "Asia"]
+  max_price_usd:
+    Europe: 600
+    Asia: 1000
