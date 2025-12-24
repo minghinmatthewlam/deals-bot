@@ -76,6 +76,9 @@ stores:
       - type: gmail_from_domain
         pattern: us.e.cos.com
         priority: 50
+      - type: web_url
+        pattern: https://www.cos.com/en_usd/sale.html
+        priority: 100
 
   # Corridor NYC
   - slug: corridor
@@ -89,6 +92,9 @@ stores:
       - type: gmail_from_domain
         pattern: corridornyc.com
         priority: 50
+      - type: web_url
+        pattern: https://corridornyc.com/collections/sale
+        priority: 100
 
   # Resy
   - slug: resy
