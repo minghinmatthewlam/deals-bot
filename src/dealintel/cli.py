@@ -72,6 +72,15 @@ def gmail_auth() -> None:
 
 
 @app.command()
+def inbound_import(eml_dir: str = typer.Option("inbound_eml", "--dir", "-d")) -> None:
+    """Import emails from .eml files."""
+    from dealintel.inbound.ingest import ingest_inbound_eml_dir
+
+    stats = ingest_inbound_eml_dir(eml_dir)
+    console.print(stats)
+
+
+@app.command()
 def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML instead of sending email")) -> None:
     """Run daily pipeline."""
     from dealintel.jobs.daily import run_daily_pipeline
