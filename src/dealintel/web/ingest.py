@@ -10,6 +10,7 @@ from dealintel.gmail.parse import compute_body_hash
 from dealintel.models import EmailRaw, StoreSource
 from dealintel.web.fetch import fetch_url
 from dealintel.web.parse import parse_web_html
+from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_sale_page
 
 logger = structlog.get_logger()
 
@@ -83,10 +84,19 @@ def ingest_web_sources() -> dict[str, int | bool]:
                     continue
 
                 parsed = parse_web_html(result.text)
-                body_text = parsed.body_text
+                canonical_url = parsed.canonical_url or result.final_url
+
+                # Use a structured summary for apparel sale/clearance pages to reduce noisy product grids.
+                is_sale_page = store.category == "apparel" and any(
+                    keyword in canonical_url.lower() for keyword in ("sale", "clearance", "outlet")
+                )
+                if is_sale_page:
+                    sale_summary = parse_sale_page(result.text, canonical_url)
+                    body_text = format_sale_summary_for_extraction(sale_summary)
+                else:
+                    body_text = parsed.body_text
 
                 body_hash = compute_body_hash(body_text)
-                canonical_url = parsed.canonical_url or result.final_url
                 message_id = _web_message_id(canonical_url, body_hash)
 
                 existing = session.query(EmailRaw).filter_by(gmail_message_id=message_id).first()
