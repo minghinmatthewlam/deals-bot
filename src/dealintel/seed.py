@@ -1,14 +1,15 @@
 """Store seeding from stores.yaml."""
 
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from dealintel.db import get_db
 from dealintel.models import Store, StoreSource
 
 
-def seed_stores(stores_path: str = "stores.yaml") -> dict:
+def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
     """Upsert stores and sources from YAML file.
 
     Returns:
@@ -19,14 +20,17 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict:
         raise FileNotFoundError(f"Stores file not found: {stores_path}")
 
     with open(path) as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError("stores.yaml must contain a top-level mapping")
+    stores_data: list[dict[str, Any]] = data.get("stores", [])
 
     stores_created = 0
     stores_updated = 0
     sources_created = 0
 
     with get_db() as session:
-        for store_data in data.get("stores", []):
+        for store_data in stores_data:
             slug = store_data["slug"]
             existing = session.query(Store).filter_by(slug=slug).first()
 

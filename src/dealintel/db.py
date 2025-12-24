@@ -1,7 +1,7 @@
 """Database connection and session management."""
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -36,7 +36,7 @@ def acquire_advisory_lock(session: Session, lock_name: str) -> bool:
     """Acquire Postgres advisory lock (prevents concurrent runs)."""
     lock_id = hash(lock_name) % (2**31)
     result = session.execute(text("SELECT pg_try_advisory_lock(:id)"), {"id": lock_id})
-    return result.scalar()
+    return bool(result.scalar())
 
 
 def release_advisory_lock(session: Session, lock_name: str) -> None:

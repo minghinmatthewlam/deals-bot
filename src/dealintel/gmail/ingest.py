@@ -1,10 +1,13 @@
 """Gmail email ingestion with cursor-based sync."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import UUID
 
 import structlog
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from googleapiclient.discovery import build  # type: ignore[import-untyped]
+from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
+from sqlalchemy.orm import Session
 
 from dealintel.db import get_db
 from dealintel.gmail.auth import get_credentials
@@ -14,13 +17,13 @@ from dealintel.models import EmailRaw, GmailState, StoreSource
 logger = structlog.get_logger()
 
 
-def get_gmail_service():
+def get_gmail_service() -> Any:
     """Get authenticated Gmail API service."""
     creds = get_credentials()
     return build("gmail", "v1", credentials=creds)
 
 
-def get_or_create_gmail_state(session, user_key: str = "default") -> GmailState:
+def get_or_create_gmail_state(session: Session, user_key: str = "default") -> GmailState:
     """Get or create Gmail sync state."""
     state = session.query(GmailState).filter_by(user_key=user_key).first()
     if not state:
@@ -30,7 +33,7 @@ def get_or_create_gmail_state(session, user_key: str = "default") -> GmailState:
     return state
 
 
-def fetch_via_history(service, start_history_id: str) -> tuple[list[str], str | None]:
+def fetch_via_history(service: Any, start_history_id: str) -> tuple[list[str], str | None]:
     """Fetch message IDs using Gmail History API with pagination."""
     message_ids = []
     page_token = None
@@ -59,7 +62,7 @@ def fetch_via_history(service, start_history_id: str) -> tuple[list[str], str | 
     return message_ids, response.get("historyId")
 
 
-def fetch_by_date(service, days: int = 14) -> tuple[list[str], str | None]:
+def fetch_by_date(service: Any, days: int = 14) -> tuple[list[str], str | None]:
     """Fetch messages by date range (fallback for expired history)."""
     after_date = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y/%m/%d")
     query = f"after:{after_date}"
@@ -91,7 +94,7 @@ def fetch_by_date(service, days: int = 14) -> tuple[list[str], str | None]:
     return message_ids, profile.get("historyId")
 
 
-def match_store(session, from_address: str, from_domain: str):
+def match_store(session: Session, from_address: str, from_domain: str) -> UUID | None:
     """Match email to store using source rules."""
     # Query for matching sources, ordered by priority
     source = (
@@ -110,10 +113,10 @@ def match_store(session, from_address: str, from_domain: str):
     return source.store_id if source else None
 
 
-def ingest_emails() -> dict:
+def ingest_emails() -> dict[str, int]:
     """Incremental sync using Gmail historyId."""
     service = get_gmail_service()
-    stats = {"fetched": 0, "new": 0, "matched": 0, "unmatched": 0, "errors": 0}
+    stats: dict[str, int] = {"fetched": 0, "new": 0, "matched": 0, "unmatched": 0, "errors": 0}
 
     with get_db() as session:
         state = get_or_create_gmail_state(session)

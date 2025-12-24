@@ -2,8 +2,9 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-import pytz
+import pytz  # type: ignore[import-untyped]
 import structlog
 
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
@@ -18,13 +19,13 @@ from dealintel.seed import seed_stores
 logger = structlog.get_logger()
 
 
-def process_pending_emails() -> dict:
+def process_pending_emails() -> dict[str, int]:
     """Extract promos from unprocessed emails.
 
     Returns:
         dict with counts: {processed, succeeded, failed}
     """
-    stats = {"processed": 0, "succeeded": 0, "failed": 0}
+    stats: dict[str, int] = {"processed": 0, "succeeded": 0, "failed": 0}
 
     with get_db() as session:
         pending = session.query(EmailRaw).filter_by(extraction_status="pending").all()
@@ -54,7 +55,7 @@ def process_pending_emails() -> dict:
     return stats
 
 
-def run_daily_pipeline(dry_run: bool = False) -> dict:
+def run_daily_pipeline(dry_run: bool = False) -> dict[str, Any]:
     """Full pipeline with proper concurrency and idempotency.
 
     Args:
@@ -66,7 +67,7 @@ def run_daily_pipeline(dry_run: bool = False) -> dict:
     et = pytz.timezone("America/New_York")
     today_et = datetime.now(et).strftime("%Y-%m-%d")
 
-    stats = {
+    stats: dict[str, Any] = {
         "date": today_et,
         "dry_run": dry_run,
         "ingest": {},

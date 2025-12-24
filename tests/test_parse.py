@@ -1,7 +1,5 @@
 """Unit tests for email parsing functions."""
 
-import pytest
-
 from dealintel.gmail.parse import compute_body_hash, extract_top_links, parse_from_address
 
 

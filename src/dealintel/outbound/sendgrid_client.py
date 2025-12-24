@@ -3,8 +3,8 @@
 from datetime import datetime
 
 import structlog
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid import SendGridAPIClient  # type: ignore[import-untyped]
+from sendgrid.helpers.mail import Mail  # type: ignore[import-untyped]
 
 from dealintel.config import settings
 

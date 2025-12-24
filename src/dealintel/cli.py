@@ -1,7 +1,5 @@
 """CLI entry point using Typer."""
 
-import json
-
 import structlog
 import typer
 from rich.console import Console
@@ -26,7 +24,7 @@ structlog.configure(
 
 
 @app.command()
-def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")):
+def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")) -> None:
     """Seed stores from stores.yaml."""
     from dealintel.seed import seed_stores
 
@@ -54,7 +52,7 @@ def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAM
 
 
 @app.command()
-def gmail_auth():
+def gmail_auth() -> None:
     """Run Gmail OAuth flow."""
     from dealintel.gmail.auth import run_oauth_flow
 
@@ -74,7 +72,7 @@ def gmail_auth():
 
 
 @app.command()
-def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML instead of sending email")):
+def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML instead of sending email")) -> None:
     """Run daily pipeline."""
     from dealintel.jobs.daily import run_daily_pipeline
 
@@ -135,7 +133,7 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
 
 
 @app.command()
-def status():
+def status() -> None:
     """Show current status and recent runs."""
     from dealintel.db import get_db
     from dealintel.models import EmailRaw, Promo, Run, Store

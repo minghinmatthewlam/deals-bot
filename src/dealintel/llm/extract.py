@@ -82,6 +82,8 @@ def extract_promos(email: EmailRaw) -> ExtractionResult:
     )
 
     result = response.choices[0].message.parsed
+    if result is None:
+        raise RuntimeError("OpenAI response missing parsed extraction result")
     logger.info(
         "Extraction complete",
         email_id=str(email.id),

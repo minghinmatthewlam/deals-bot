@@ -1,11 +1,14 @@
 """SQLAlchemy ORM models."""
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -24,11 +27,13 @@ class Store(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    website_url: Mapped[Optional[str]] = mapped_column(String(500))
-    category: Mapped[Optional[str]] = mapped_column(String(100))
+    website_url: Mapped[str | None] = mapped_column(String(500))
+    category: Mapped[str | None] = mapped_column(String(100))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     sources: Mapped[list["StoreSource"]] = relationship(back_populates="store", cascade="all, delete-orphan")
     emails: Mapped[list["EmailRaw"]] = relationship(back_populates="store")
@@ -59,9 +64,11 @@ class GmailState(Base):
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    last_history_id: Mapped[Optional[str]] = mapped_column(String(100))
-    last_full_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_history_id: Mapped[str | None] = mapped_column(String(100))
+    last_full_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class EmailRaw(Base):
@@ -71,22 +78,22 @@ class EmailRaw(Base):
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     gmail_message_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    gmail_thread_id: Mapped[Optional[str]] = mapped_column(String(100))
-    store_id: Mapped[Optional[UUID]] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
+    gmail_thread_id: Mapped[str | None] = mapped_column(String(100))
+    store_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
     from_address: Mapped[str] = mapped_column(String(500), nullable=False)
     from_domain: Mapped[str] = mapped_column(String(255), nullable=False)
-    from_name: Mapped[Optional[str]] = mapped_column(String(500))
+    from_name: Mapped[str | None] = mapped_column(String(500))
     subject: Mapped[str] = mapped_column(String(1000), nullable=False)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    body_text: Mapped[Optional[str]] = mapped_column(Text)
+    body_text: Mapped[str | None] = mapped_column(Text)
     body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    top_links: Mapped[Optional[dict]] = mapped_column(JSONB)
+    top_links: Mapped[list[str] | None] = mapped_column(JSONB)
     extraction_status: Mapped[str] = mapped_column(String(20), default="pending")
-    extraction_error: Mapped[Optional[str]] = mapped_column(Text)
+    extraction_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    store: Mapped[Optional["Store"]] = relationship(back_populates="emails")
-    extraction: Mapped[Optional["PromoExtraction"]] = relationship(back_populates="email", uselist=False)
+    store: Mapped[Store | None] = relationship(back_populates="emails")
+    extraction: Mapped[PromoExtraction | None] = relationship(back_populates="email", uselist=False)
     promo_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="email")
     promo_changes: Mapped[list["PromoChange"]] = relationship(back_populates="email")
 
@@ -97,10 +104,12 @@ class PromoExtraction(Base):
     __tablename__ = "promo_extractions"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"), unique=True)
+    email_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"), unique=True
+    )
     model: Mapped[str] = mapped_column(String(100), nullable=False)
-    extracted_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    error: Mapped[Optional[str]] = mapped_column(Text)
+    extracted_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     email: Mapped["EmailRaw"] = relationship(back_populates="extraction")
@@ -112,24 +121,26 @@ class Promo(Base):
     __tablename__ = "promos"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    store_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    store_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+    )
     base_key: Mapped[str] = mapped_column(String(500), nullable=False)  # Dedup key
     headline: Mapped[str] = mapped_column(String(500), nullable=False)
-    summary: Mapped[Optional[str]] = mapped_column(Text)
-    discount_text: Mapped[Optional[str]] = mapped_column(String(500))
-    percent_off: Mapped[Optional[float]] = mapped_column(Float)
-    amount_off: Mapped[Optional[float]] = mapped_column(Float)
-    code: Mapped[Optional[str]] = mapped_column(String(100))
-    starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    summary: Mapped[str | None] = mapped_column(Text)
+    discount_text: Mapped[str | None] = mapped_column(String(500))
+    percent_off: Mapped[float | None] = mapped_column(Float)
+    amount_off: Mapped[float | None] = mapped_column(Float)
+    code: Mapped[str | None] = mapped_column(String(100))
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_inferred: Mapped[bool] = mapped_column(Boolean, default=False)
-    exclusions: Mapped[Optional[str]] = mapped_column(Text)
-    landing_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    exclusions: Mapped[str | None] = mapped_column(Text)
+    landing_url: Mapped[str | None] = mapped_column(String(1000))
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active/expired/unknown
-    last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     store: Mapped["Store"] = relationship(back_populates="promos")
     email_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
@@ -165,8 +176,10 @@ class PromoChange(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     promo_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"))
     email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"))
-    change_type: Mapped[str] = mapped_column(String(50), nullable=False)  # created, discount_changed, end_extended, code_added, etc.
-    diff_json: Mapped[dict] = mapped_column(JSONB, default={})
+    change_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # created, discount_changed, end_extended, code_added, etc.
+    diff_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     promo: Mapped["Promo"] = relationship(back_populates="changes")
@@ -186,13 +199,13 @@ class Run(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     run_type: Mapped[str] = mapped_column(String(50), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(20), default="running")
     digest_date_et: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
-    digest_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    digest_provider_id: Mapped[Optional[str]] = mapped_column(String(100))
-    gmail_cursor_history_id: Mapped[Optional[str]] = mapped_column(String(100))
-    stats_json: Mapped[dict] = mapped_column(JSONB, default={})
-    error_json: Mapped[dict] = mapped_column(JSONB, default={})
+    digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    digest_provider_id: Mapped[str | None] = mapped_column(String(100))
+    gmail_cursor_history_id: Mapped[str | None] = mapped_column(String(100))
+    stats_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    error_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
 
     __table_args__ = (UniqueConstraint("run_type", "digest_date_et"),)  # Prevents double-send

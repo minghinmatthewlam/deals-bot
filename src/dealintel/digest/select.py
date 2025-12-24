@@ -1,12 +1,21 @@
 """Digest promo selection - only NEW/UPDATED since last digest."""
 
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
 import structlog
 from sqlalchemy.orm import Session
 
 from dealintel.db import get_db
 from dealintel.models import Promo, PromoChange, Run
+
+
+class DigestItem(TypedDict):
+    promo: Promo
+    badge: str
+    store_name: str
+    changes: list[str]
+
 
 logger = structlog.get_logger()
 
@@ -24,13 +33,14 @@ def get_last_digest_time(session: Session) -> datetime:
     )
 
     if last_run:
+        assert last_run.digest_sent_at is not None
         return last_run.digest_sent_at
 
     # Default to 24 hours ago if no previous digest
     return datetime.now(UTC) - timedelta(hours=24)
 
 
-def select_digest_promos() -> list[dict]:
+def select_digest_promos() -> list[DigestItem]:
     """Select promos that are NEW or UPDATED since last digest.
 
     Returns:
@@ -40,7 +50,7 @@ def select_digest_promos() -> list[dict]:
         since = get_last_digest_time(session)
         logger.info("Selecting promos since", since=since.isoformat())
 
-        results = []
+        results: list[DigestItem] = []
         seen = set()
 
         # NEW promos (created since last digest)

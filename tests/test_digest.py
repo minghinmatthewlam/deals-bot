@@ -3,8 +3,6 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestSelectDigestPromos:
     """Tests for select_digest_promos()."""
@@ -35,10 +33,7 @@ class TestSelectDigestPromos:
         from dealintel.models import PromoChange
 
         # Update the promo's creation to be old
-        change = db_session.query(PromoChange).filter_by(
-            promo_id=sample_promo.id,
-            change_type="created"
-        ).first()
+        change = db_session.query(PromoChange).filter_by(promo_id=sample_promo.id, change_type="created").first()
         change.changed_at = datetime.now(UTC) - timedelta(days=2)
         db_session.flush()
 

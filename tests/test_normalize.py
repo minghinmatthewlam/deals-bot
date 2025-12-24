@@ -1,7 +1,5 @@
 """Unit tests for promo normalization functions."""
 
-import pytest
-
 from dealintel.promos.normalize import compute_base_key, normalize_headline, normalize_url
 
 

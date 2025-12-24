@@ -7,12 +7,12 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment, FileSystemLoader
 
-from dealintel.digest.select import select_digest_promos
+from dealintel.digest.select import DigestItem, select_digest_promos
 
 logger = structlog.get_logger()
 
 
-def group_by_store(promos: list[dict]) -> dict[str, list[dict]]:
+def group_by_store(promos: list[DigestItem]) -> dict[str, list[DigestItem]]:
     """Group promos by store name for organized display."""
     by_store = defaultdict(list)
     for item in promos:

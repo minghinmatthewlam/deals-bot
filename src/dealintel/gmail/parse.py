@@ -4,12 +4,13 @@ import base64
 import hashlib
 import re
 from email.utils import parseaddr
+from typing import Any
 
 import html2text
 from bs4 import BeautifulSoup
 
 
-def parse_headers(message: dict) -> dict:
+def parse_headers(message: dict[str, Any]) -> dict[str, str]:
     """Extract headers from Gmail message."""
     headers = {}
     for header in message.get("payload", {}).get("headers", []):
@@ -27,7 +28,7 @@ def parse_from_address(from_header: str) -> tuple[str, str | None]:
     return email.lower(), name if name else None
 
 
-def get_body_parts(payload: dict) -> list[dict]:
+def get_body_parts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Recursively extract body parts from message payload."""
     parts = []
 
@@ -45,7 +46,7 @@ def get_body_parts(payload: dict) -> list[dict]:
     return parts
 
 
-def parse_body(message: dict) -> tuple[str | None, list[str] | None]:
+def parse_body(message: dict[str, Any]) -> tuple[str | None, list[str] | None]:
     """Extract text body and top links from Gmail message.
 
     Returns:
@@ -93,7 +94,9 @@ def extract_top_links(html_content: str, limit: int = 10) -> list[str]:
     seen = set()
 
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = a.get("href")
+        if not isinstance(href, str):
+            continue
         # Skip mailto, tel, javascript links
         if any(href.startswith(prefix) for prefix in ["mailto:", "tel:", "javascript:", "#"]):
             continue

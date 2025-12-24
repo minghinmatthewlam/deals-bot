@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
-from dateutil.parser import parse as parse_datetime
+from dateutil.parser import parse as parse_datetime  # type: ignore[import-untyped]
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -147,21 +147,18 @@ def detect_and_record_changes(
     return [c[0] for c in changes]
 
 
-def merge_extracted_promos() -> dict:
+def merge_extracted_promos() -> dict[str, int]:
     """Merge extractions into canonical promos.
 
     Returns:
         dict with counts: {created, updated, unchanged}
     """
-    stats = {"created": 0, "updated": 0, "unchanged": 0, "errors": 0}
+    stats: dict[str, int] = {"created": 0, "updated": 0, "unchanged": 0, "errors": 0}
 
     with get_db() as session:
         # Get unprocessed extractions
         extractions = (
-            session.query(PromoExtraction)
-            .join(EmailRaw)
-            .filter(EmailRaw.extraction_status == "success")
-            .all()
+            session.query(PromoExtraction).join(EmailRaw).filter(EmailRaw.extraction_status == "success").all()
         )
 
         for extraction in extractions:
@@ -253,9 +250,7 @@ def merge_extracted_promos() -> dict:
 
                     # Link email to promo
                     link_exists = (
-                        session.query(PromoEmailLink)
-                        .filter_by(promo_id=existing.id, email_id=email.id)
-                        .first()
+                        session.query(PromoEmailLink).filter_by(promo_id=existing.id, email_id=email.id).first()
                     )
                     if not link_exists:
                         session.add(PromoEmailLink(promo_id=existing.id, email_id=email.id))

@@ -1,8 +1,8 @@
 """Pytest fixtures for Deal Intelligence tests."""
 
 import os
+from collections.abc import Generator
 from datetime import UTC, datetime
-from typing import Generator
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -34,8 +34,8 @@ def db_session(engine) -> Generator[Session, None, None]:
     connection = engine.connect()
     transaction = connection.begin()
 
-    SessionLocal = sessionmaker(bind=connection)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=connection)
+    session = session_local()
 
     yield session
 
@@ -55,6 +55,7 @@ def sample_store(db_session: Session) -> Store:
         active=True,
     )
     db_session.add(store)
+    db_session.flush()
 
     # Add source
     source = StoreSource(
@@ -117,6 +118,7 @@ def sample_promo(db_session: Session, sample_store: Store, sample_email: EmailRa
         status="active",
     )
     db_session.add(promo)
+    db_session.flush()
 
     # Add creation change
     change = PromoChange(
@@ -160,9 +162,9 @@ def mock_gmail_service():
 @pytest.fixture
 def mock_openai_client():
     """Mock OpenAI client for extraction."""
-    with patch("dealintel.llm.extract.OpenAI") as MockOpenAI:
+    with patch("dealintel.llm.extract.OpenAI") as mock_openai:
         client = MagicMock()
-        MockOpenAI.return_value = client
+        mock_openai.return_value = client
 
         # Mock successful extraction response
         mock_response = MagicMock()

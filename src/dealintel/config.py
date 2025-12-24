@@ -32,4 +32,4 @@ class Settings(BaseSettings):
     gmail_token_path: str = "token.json"
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

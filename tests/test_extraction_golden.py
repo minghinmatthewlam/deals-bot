@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -31,7 +30,7 @@ class TestGoldenExtractions:
     )
     def test_extraction_matches_golden(self, email_fixture, golden_file, mock_openai_client):
         """Test that extraction output matches expected golden file."""
-        email_content = load_fixture(email_fixture)
+        assert load_fixture(email_fixture)
         expected = load_golden(golden_file)
 
         # The mock client will return our expected response

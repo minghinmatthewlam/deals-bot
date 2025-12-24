@@ -20,9 +20,18 @@ class TestPipelineIntegration:
             with patch("dealintel.jobs.daily.acquire_advisory_lock", return_value=True):
                 with patch("dealintel.jobs.daily.release_advisory_lock"):
                     with patch("dealintel.jobs.daily.seed_stores"):
-                        with patch("dealintel.jobs.daily.ingest_emails", return_value={"fetched": 0, "new": 0, "matched": 0, "unmatched": 0}):
-                            with patch("dealintel.jobs.daily.process_pending_emails", return_value={"processed": 0, "succeeded": 0, "failed": 0}):
-                                with patch("dealintel.jobs.daily.merge_extracted_promos", return_value={"created": 0, "updated": 0, "unchanged": 0}):
+                        with patch(
+                            "dealintel.jobs.daily.ingest_emails",
+                            return_value={"fetched": 0, "new": 0, "matched": 0, "unmatched": 0},
+                        ):
+                            with patch(
+                                "dealintel.jobs.daily.process_pending_emails",
+                                return_value={"processed": 0, "succeeded": 0, "failed": 0},
+                            ):
+                                with patch(
+                                    "dealintel.jobs.daily.merge_extracted_promos",
+                                    return_value={"created": 0, "updated": 0, "unchanged": 0},
+                                ):
                                     with patch("dealintel.jobs.daily.generate_digest", return_value=(None, 0, 0)):
                                         stats = run_daily_pipeline(dry_run=True)
 
@@ -54,11 +63,10 @@ class TestIdempotency:
         )
 
         # This should fail due to unique constraint
-        with pytest.raises(Exception):
-            db_session.add(duplicate)
-            db_session.flush()
-
-        db_session.rollback()
+        with db_session.begin_nested():
+            with pytest.raises(Exception):
+                db_session.add(duplicate)
+                db_session.flush()
 
         # Count should be unchanged
         assert db_session.query(EmailRaw).count() == original_count
@@ -67,14 +75,8 @@ class TestIdempotency:
         """Same promo from multiple emails should be merged."""
         from dealintel.models import Promo
 
-        original_count = db_session.query(Promo).filter_by(store_id=sample_store.id).count()
-
         # The same base_key should match existing promo
-        existing = (
-            db_session.query(Promo)
-            .filter_by(store_id=sample_store.id, base_key="code:SAVE25")
-            .first()
-        )
+        existing = db_session.query(Promo).filter_by(store_id=sample_store.id, base_key="code:SAVE25").first()
 
         assert existing is not None
         assert existing.id == sample_promo.id
@@ -85,8 +87,6 @@ class TestErrorRecovery:
 
     def test_extraction_failure_continues(self, db_session, sample_email):
         """One extraction failure should not stop other extractions."""
-        from dealintel.models import EmailRaw
-
         # Mark email as pending
         sample_email.extraction_status = "pending"
         db_session.flush()
