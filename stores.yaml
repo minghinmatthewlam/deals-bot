@@ -122,6 +122,36 @@ stores:
         pattern: bankless.com
         priority: 50
 
+  # Secret Flying
+  - slug: secret-flying
+    name: Secret Flying
+    website_url: https://secretflying.com
+    category: travel
+    sources:
+      - type: web_url
+        pattern: https://secretflying.com/posts/
+        priority: 100
+
+  # United Airlines
+  - slug: united
+    name: United Airlines
+    website_url: https://www.united.com
+    category: travel
+    sources:
+      - type: web_url
+        pattern: https://www.united.com/en/us/deals
+        priority: 100
+
+  # Delta Air Lines
+  - slug: delta
+    name: Delta Air Lines
+    website_url: https://www.delta.com
+    category: travel
+    sources:
+      - type: web_url
+        pattern: https://www.delta.com/us/en/deals-and-offers
+        priority: 100
+
 # Add more stores as needed by following this pattern:
 # - slug: unique-identifier (lowercase, hyphens)
 #   name: Display Name
