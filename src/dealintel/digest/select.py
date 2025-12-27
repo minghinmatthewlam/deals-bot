@@ -47,6 +47,7 @@ def select_digest_promos() -> list[DigestItem]:
         List of dicts with: {promo, badge, store_name, changes}
     """
     with get_db() as session:
+        session.expire_on_commit = False
         since = get_last_digest_time(session)
         logger.info("Selecting promos since", since=since.isoformat())
 

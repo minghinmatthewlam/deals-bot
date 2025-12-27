@@ -160,6 +160,7 @@ def merge_extracted_promos() -> dict[str, int]:
         extractions = (
             session.query(PromoExtraction).join(EmailRaw).filter(EmailRaw.extraction_status == "success").all()
         )
+        link_cache: set[tuple[UUID, UUID]] = set()
 
         for extraction in extractions:
             email = extraction.email
@@ -249,11 +250,19 @@ def merge_extracted_promos() -> dict[str, int]:
                         stats["created"] += 1
 
                     # Link email to promo
+                    link_key = (existing.id, email.id)
+                    if link_key in link_cache:
+                        continue
+
                     link_exists = (
                         session.query(PromoEmailLink).filter_by(promo_id=existing.id, email_id=email.id).first()
                     )
-                    if not link_exists:
-                        session.add(PromoEmailLink(promo_id=existing.id, email_id=email.id))
+                    if link_exists:
+                        link_cache.add(link_key)
+                        continue
+
+                    session.add(PromoEmailLink(promo_id=existing.id, email_id=email.id))
+                    link_cache.add(link_key)
 
             except Exception as e:
                 logger.error("Error merging extraction", extraction_id=str(extraction.id), error=str(e))
