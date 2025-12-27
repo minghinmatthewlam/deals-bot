@@ -1,12 +1,12 @@
 """RSS/Atom parsing utilities."""
 
 import calendar
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
-from typing import Any, Mapping
-
-import feedparser  # type: ignore[import-not-found]
+import feedparser  # type: ignore[import-untyped]
 import structlog
 
 logger = structlog.get_logger()

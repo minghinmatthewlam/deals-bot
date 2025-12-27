@@ -152,9 +152,7 @@ def _extract_prices(product: Tag) -> tuple[float | None, float | None]:
     sale_candidates: list[float] = []
     all_prices: list[float] = []
 
-    price_elements = product.select(
-        "[class*='price'], [class*='Price'], [class*='amount'], .price, s, del"
-    )
+    price_elements = product.select("[class*='price'], [class*='Price'], [class*='amount'], .price, s, del")
 
     for element in price_elements:
         text = element.get_text(" ", strip=True)

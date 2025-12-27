@@ -35,9 +35,9 @@ class Store(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    sources: Mapped[list["StoreSource"]] = relationship(back_populates="store", cascade="all, delete-orphan")
-    emails: Mapped[list["EmailRaw"]] = relationship(back_populates="store")
-    promos: Mapped[list["Promo"]] = relationship(back_populates="store", cascade="all, delete-orphan")
+    sources: Mapped[list[StoreSource]] = relationship(back_populates="store", cascade="all, delete-orphan")
+    emails: Mapped[list[EmailRaw]] = relationship(back_populates="store")
+    promos: Mapped[list[Promo]] = relationship(back_populates="store", cascade="all, delete-orphan")
 
 
 class StoreSource(Base):
@@ -52,7 +52,7 @@ class StoreSource(Base):
     priority: Mapped[int] = mapped_column(default=100)  # Higher wins
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    store: Mapped["Store"] = relationship(back_populates="sources")
+    store: Mapped[Store] = relationship(back_populates="sources")
 
     __table_args__ = (UniqueConstraint("store_id", "source_type", "pattern"),)
 
@@ -94,8 +94,8 @@ class EmailRaw(Base):
 
     store: Mapped[Store | None] = relationship(back_populates="emails")
     extraction: Mapped[PromoExtraction | None] = relationship(back_populates="email", uselist=False)
-    promo_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="email")
-    promo_changes: Mapped[list["PromoChange"]] = relationship(back_populates="email")
+    promo_links: Mapped[list[PromoEmailLink]] = relationship(back_populates="email")
+    promo_changes: Mapped[list[PromoChange]] = relationship(back_populates="email")
 
 
 class PromoExtraction(Base):
@@ -112,7 +112,7 @@ class PromoExtraction(Base):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    email: Mapped["EmailRaw"] = relationship(back_populates="extraction")
+    email: Mapped[EmailRaw] = relationship(back_populates="extraction")
 
 
 class Promo(Base):
@@ -142,9 +142,9 @@ class Promo(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")  # active/expired/unknown
     last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    store: Mapped["Store"] = relationship(back_populates="promos")
-    email_links: Mapped[list["PromoEmailLink"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
-    changes: Mapped[list["PromoChange"]] = relationship(back_populates="promo", cascade="all, delete-orphan")
+    store: Mapped[Store] = relationship(back_populates="promos")
+    email_links: Mapped[list[PromoEmailLink]] = relationship(back_populates="promo", cascade="all, delete-orphan")
+    changes: Mapped[list[PromoChange]] = relationship(back_populates="promo", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("store_id", "base_key"),
@@ -162,8 +162,8 @@ class PromoEmailLink(Base):
     promo_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("promos.id", ondelete="CASCADE"))
     email_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("emails_raw.id", ondelete="CASCADE"))
 
-    promo: Mapped["Promo"] = relationship(back_populates="email_links")
-    email: Mapped["EmailRaw"] = relationship(back_populates="promo_links")
+    promo: Mapped[Promo] = relationship(back_populates="email_links")
+    email: Mapped[EmailRaw] = relationship(back_populates="promo_links")
 
     __table_args__ = (UniqueConstraint("promo_id", "email_id"),)
 
@@ -182,8 +182,8 @@ class PromoChange(Base):
     diff_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    promo: Mapped["Promo"] = relationship(back_populates="changes")
-    email: Mapped["EmailRaw"] = relationship(back_populates="promo_changes")
+    promo: Mapped[Promo] = relationship(back_populates="changes")
+    email: Mapped[EmailRaw] = relationship(back_populates="promo_changes")
 
     __table_args__ = (
         UniqueConstraint("promo_id", "email_id", "change_type"),
