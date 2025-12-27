@@ -153,6 +153,53 @@ def _extract_prices(product: Tag) -> tuple[float | None, float | None]:
     all_prices: list[float] = []
 
     price_elements = product.select("[class*='price'], [class*='Price'], [class*='amount'], .price, s, del")
+    price_attr_tokens = ("price", "amount")
+    original_tokens = ("original", "compare", "was", "old", "regular")
+    sale_tokens = ("sale", "current", "now", "final", "discount")
+
+    def register_prices(prices: list[float], *, origin: str) -> None:
+        if not prices:
+            return
+        all_prices.extend(prices)
+        if origin == "original":
+            original_candidates.extend(prices)
+        elif origin == "sale":
+            sale_candidates.extend(prices)
+
+    def classify_attr(name: str) -> str:
+        lower = name.lower()
+        if any(token in lower for token in original_tokens):
+            return "original"
+        if any(token in lower for token in sale_tokens):
+            return "sale"
+        return "unknown"
+
+    def parse_attr_prices(value: str) -> list[float]:
+        if not value:
+            return []
+        prices = _parse_prices(value)
+        if prices:
+            return prices
+        normalized = value.strip().replace(",", "")
+        if normalized.isdigit():
+            raw = float(normalized)
+            if raw >= 1000:
+                return [round(raw / 100.0, 2)]
+            return [raw]
+        return []
+
+    # Attributes often carry structured prices (e.g., data-compare-at-price).
+    for element in [product, *price_elements]:
+        for attr_name, attr_value in element.attrs.items():
+            if not any(token in attr_name.lower() for token in price_attr_tokens):
+                continue
+            if isinstance(attr_value, list):
+                attr_text = " ".join(attr_value)
+            else:
+                attr_text = str(attr_value)
+            prices = parse_attr_prices(attr_text)
+            bucket = classify_attr(attr_name)
+            register_prices(prices, origin=bucket)
 
     for element in price_elements:
         text = element.get_text(" ", strip=True)
@@ -163,13 +210,13 @@ def _extract_prices(product: Tag) -> tuple[float | None, float | None]:
         if not prices:
             continue
 
-        all_prices.extend(prices)
-
         class_attr = " ".join(element.get("class") or []).lower()
-        if element.name in {"s", "del"} or any(token in class_attr for token in ("original", "compare", "was", "old")):
-            original_candidates.extend(prices)
-        elif any(token in class_attr for token in ("sale", "current", "now", "discount")):
-            sale_candidates.extend(prices)
+        if element.name in {"s", "del"} or any(token in class_attr for token in original_tokens):
+            register_prices(prices, origin="original")
+        elif any(token in class_attr for token in sale_tokens):
+            register_prices(prices, origin="sale")
+        else:
+            register_prices(prices, origin="unknown")
 
     if original_candidates or sale_candidates:
         original = max(original_candidates) if original_candidates else None

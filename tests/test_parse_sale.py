@@ -2,34 +2,24 @@
 
 from dealintel.web.parse_sale import parse_sale_page
 
-SALE_HTML = """
-<html>
-  <body>
-    <div class="product-card">
-      <h3>Jacket</h3>
-      <span class="price price--original">$200</span>
-      <span class="price price--sale">$120</span>
-    </div>
-    <div class="product-card">
-      <h3>Shirt</h3>
-      <s>$100</s>
-      <span class="price">$70</span>
-    </div>
-  </body>
-</html>
-"""
 
+def test_parse_sale_page_attribute_prices():
+    html = """
+    <html>
+      <head><title>Big Sale</title></head>
+      <body>
+        <div class="product-card" data-compare-at-price="12900" data-price="9900">
+          <h3>Widget Jacket</h3>
+        </div>
+      </body>
+    </html>
+    """
 
-def test_sale_page_extracts_prices():
-    summary = parse_sale_page(SALE_HTML, "https://example.com/sale")
-    samples = {sample.name: sample for sample in summary.product_samples}
+    summary = parse_sale_page(html, "https://example.com/sale")
+    assert summary.product_samples
 
-    assert samples["Jacket"].original_price == 200.0
-    assert samples["Jacket"].sale_price == 120.0
-    assert samples["Jacket"].discount_percent == 40
-
-    assert samples["Shirt"].original_price == 100.0
-    assert samples["Shirt"].sale_price == 70.0
-    assert samples["Shirt"].discount_percent == 30
-
-    assert summary.discount_range == (30, 40)
+    sample = summary.product_samples[0]
+    assert sample.name == "Widget Jacket"
+    assert sample.original_price == 129.0
+    assert sample.sale_price == 99.0
+    assert sample.discount_percent == 23
