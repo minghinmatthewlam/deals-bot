@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import httpx
 import structlog
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 logger = structlog.get_logger()
 
@@ -26,9 +26,22 @@ class FetchResult:
     truncated: bool = False
 
 
+def _is_retryable_http_status(status_code: int) -> bool:
+    return status_code in {408, 425, 429, 500, 502, 503, 504}
+
+
+def _should_retry(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return _is_retryable_http_status(exc.response.status_code)
+    return False
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(min=2, max=30),
+    retry=retry_if_exception(_should_retry),
     reraise=True,
 )
 def fetch_url(
@@ -65,7 +78,12 @@ def fetch_url(
                     elapsed_ms=elapsed_ms,
                 )
 
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}",
+                    request=response.request,
+                    response=response,
+                )
 
             content = response.text
             truncated = False
@@ -85,8 +103,17 @@ def fetch_url(
             )
 
     except httpx.HTTPStatusError as e:
-        logger.error("HTTP error", url=url, status=e.response.status_code)
-        raise
+        status_code = e.response.status_code
+        if _is_retryable_http_status(status_code):
+            logger.warning("Retryable HTTP error", url=url, status=status_code)
+            raise
+        logger.warning("HTTP error (non-retryable)", url=url, status=status_code)
+        return FetchResult(
+            final_url=str(e.response.url),
+            status_code=status_code,
+            text=None,
+            error=f"HTTP {status_code}",
+        )
     except httpx.RequestError as e:
         logger.error("Request error", url=url, error=str(e))
         return FetchResult(
