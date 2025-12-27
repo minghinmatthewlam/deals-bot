@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     ingest_gmail: bool = False
     ingest_web: bool = True
     ingest_inbound: bool = False
+    ingest_ignore_robots: bool = False
 
     # Gmail OAuth
     gmail_credentials_path: str = "credentials.json"

@@ -11,6 +11,7 @@ from urllib.robotparser import RobotFileParser
 
 import structlog
 
+from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.models import EmailRaw, StoreSource
@@ -78,7 +79,17 @@ def _get_robot_parser(url: str) -> RobotFileParser:
     return parser
 
 
-def _is_allowed_by_robots(url: str, user_agent: str = USER_AGENT) -> bool:
+def _is_allowed_by_robots(
+    url: str,
+    user_agent: str = USER_AGENT,
+    *,
+    ignore_robots: bool | None = None,
+) -> bool:
+    if ignore_robots is None:
+        ignore_robots = settings.ingest_ignore_robots
+    if ignore_robots:
+        logger.warning("Ignoring robots.txt for web fetch", url=url)
+        return True
     parser = _get_robot_parser(url)
     if getattr(parser, "disallow_all", False):
         return False

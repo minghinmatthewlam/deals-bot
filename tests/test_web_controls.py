@@ -30,7 +30,7 @@ def test_robots_disallow_blocks():
     parser.disallow_all = True
     web_ingest._robots_cache["example.com"] = parser
 
-    assert web_ingest._is_allowed_by_robots("https://example.com/deals") is False
+    assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=False) is False
 
 
 def test_robots_allow_all_passes():
@@ -40,4 +40,14 @@ def test_robots_allow_all_passes():
     parser.allow_all = True
     web_ingest._robots_cache["example.com"] = parser
 
-    assert web_ingest._is_allowed_by_robots("https://example.com/deals") is True
+    assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=False) is True
+
+
+def test_ignore_robots_overrides_disallow():
+    web_ingest._robots_cache.clear()
+
+    parser = RobotFileParser()
+    parser.disallow_all = True
+    web_ingest._robots_cache["example.com"] = parser
+
+    assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=True) is True
