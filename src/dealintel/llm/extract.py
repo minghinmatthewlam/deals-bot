@@ -26,6 +26,10 @@ Guidelines:
 
 2. For promotional emails:
    - Extract ALL distinct offers (some emails have multiple)
+   - Only extract savings-focused offers (percent off, dollar off, sale/clearance, promo code)
+   - Exclude product launches, restocks, content-only announcements, and generic product links
+   - Free shipping alone is NOT a deal
+   - For flight deals, require an explicit price (e.g., "$299 round-trip")
    - Parse dates carefully (handle "ends Sunday", "this weekend only", "limited time")
    - If end date is not explicit but can be inferred, set end_inferred=true
    - Extract promo codes EXACTLY as shown (case-sensitive)
@@ -90,6 +94,9 @@ def _filter_flight_promos(result: ExtractionResult) -> ExtractionResult:
             filtered.append(promo)
             continue
 
+        if flight.price_usd is None:
+            continue
+
         if preferred_origins and flight.origins:
             flight_origins = {origin.strip().upper() for origin in flight.origins if origin}
             if flight_origins.isdisjoint(preferred_origins):
@@ -139,6 +146,79 @@ def _normalize_region(value: str) -> str:
     return normalized
 
 
+_FREE_SHIPPING_PATTERN = re.compile(r"\bfree\s+shipping\b", re.IGNORECASE)
+_NUMERIC_DISCOUNT_PATTERN = re.compile(
+    r"(\$\s?\d+(?:\.\d+)?|\b\d{1,3}\s?%\s*off\b|\bsave\s+\$?\d+)",
+    re.IGNORECASE,
+)
+_SAVINGS_KEYWORDS = (
+    "sale",
+    "clearance",
+    "markdown",
+    "bogo",
+    "buy one get one",
+    "2 for 1",
+    "half off",
+)
+
+
+def _has_savings_signal(text: str) -> bool:
+    if not text:
+        return False
+    if _NUMERIC_DISCOUNT_PATTERN.search(text):
+        return True
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in _SAVINGS_KEYWORDS)
+
+
+def _filter_non_discount_promos(result: ExtractionResult) -> ExtractionResult:
+    """Filter out promos that do not clearly save the user money."""
+    if not result.promos:
+        if result.is_promo_email:
+            return result.model_copy(update={"is_promo_email": False})
+        return result
+
+    filtered = []
+    for promo in result.promos:
+        if promo.vertical == "flight" and promo.flight and promo.flight.price_usd is not None:
+            filtered.append(promo)
+            continue
+        if promo.percent_off and promo.percent_off > 0:
+            filtered.append(promo)
+            continue
+        if promo.amount_off and promo.amount_off > 0:
+            filtered.append(promo)
+            continue
+        if promo.code:
+            filtered.append(promo)
+            continue
+
+        combined_text = " ".join(text for text in (promo.discount_text, promo.headline, promo.summary) if text).strip()
+        if not combined_text:
+            continue
+
+        if _FREE_SHIPPING_PATTERN.search(combined_text) and not _has_savings_signal(
+            _FREE_SHIPPING_PATTERN.sub("", combined_text)
+        ):
+            continue
+
+        if _has_savings_signal(combined_text):
+            filtered.append(promo)
+
+    if len(filtered) == len(result.promos):
+        return result
+
+    updated_notes = list(result.notes)
+    updated_notes.append("Filtered non-discount promos")
+    return result.model_copy(
+        update={
+            "promos": filtered,
+            "is_promo_email": result.is_promo_email and bool(filtered),
+            "notes": updated_notes,
+        }
+    )
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
 def extract_promos(email: EmailRaw) -> ExtractionResult:
     """Extract promos using OpenAI structured outputs (guaranteed schema compliance)."""
@@ -158,6 +238,7 @@ def extract_promos(email: EmailRaw) -> ExtractionResult:
     if result is None:
         raise RuntimeError("OpenAI response missing parsed extraction result")
     result = _filter_flight_promos(result)
+    result = _filter_non_discount_promos(result)
     logger.info(
         "Extraction complete",
         email_id=str(email.id),
