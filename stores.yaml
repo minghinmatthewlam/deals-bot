@@ -79,6 +79,7 @@ stores:
       - type: web_url
         pattern: https://www.cos.com/en_usd/sale.html
         priority: 100
+        active: false  # robots.txt disallows crawling
 
   # Corridor NYC
   - slug: corridor
@@ -131,6 +132,7 @@ stores:
       - type: web_url
         pattern: https://secretflying.com/feed/
         priority: 100
+        active: false  # robots.txt disallows crawling
 
   # United Airlines
   - slug: united
@@ -141,6 +143,7 @@ stores:
       - type: web_url
         pattern: https://www.united.com/en/us/deals
         priority: 100
+        active: false  # frequent timeouts / blocks
 
   # Delta Air Lines
   - slug: delta
@@ -151,6 +154,7 @@ stores:
       - type: web_url
         pattern: https://www.delta.com/us/en/deals-and-offers
         priority: 100
+        active: false  # blocked by WAF (HTTP 444)
 
 # Add more stores as needed by following this pattern:
 # - slug: unique-identifier (lowercase, hyphens)
