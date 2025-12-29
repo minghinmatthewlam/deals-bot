@@ -50,6 +50,7 @@ def fetch_url(
     timeout_seconds: float = 20.0,
     etag: str | None = None,
     last_modified: str | None = None,
+    max_content_length: int | None = None,
 ) -> FetchResult:
     """Fetch URL with retries, redirects, and conditional GET support."""
     headers = {"User-Agent": USER_AGENT}
@@ -87,10 +88,11 @@ def fetch_url(
 
             content = response.text
             truncated = False
-            if len(content) > MAX_CONTENT_LENGTH:
-                content = content[:MAX_CONTENT_LENGTH] + "\n\n[TRUNCATED]"
+            limit = MAX_CONTENT_LENGTH if max_content_length is None else max_content_length
+            if limit and len(content) > limit:
+                content = content[:limit] + "\n\n[TRUNCATED]"
                 truncated = True
-                logger.warning("Content truncated", url=url)
+                logger.warning("Content truncated", url=url, limit_bytes=limit)
 
             return FetchResult(
                 final_url=str(response.url),

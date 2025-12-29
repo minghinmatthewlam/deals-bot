@@ -130,7 +130,7 @@ class SitemapAdapter:
 
     def _fetch_xml(self, url: str) -> str:
         self._rate_limiter.wait(url, self._crawl_delay_seconds)
-        result = fetch_url(url)
+        result = fetch_url(url, max_content_length=20 * 1024 * 1024)
         if result.error or not result.text:
             raise AdapterError(f"Failed to fetch sitemap: {result.error}")
         return result.text
