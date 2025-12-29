@@ -97,6 +97,42 @@ stores:
         pattern: https://corridornyc.com/collections/sale
         priority: 100
 
+  # Todd Snyder
+  - slug: todd-snyder
+    name: Todd Snyder
+    website_url: https://www.toddsnyder.com
+    category: apparel
+    sources:
+      - type: newsletter
+        signup_url: https://www.toddsnyder.com/pages/subscribe
+        priority: 100
+        wait_until: domcontentloaded
+        timeout_ms: 60000
+
+  # Bonobos
+  - slug: bonobos
+    name: Bonobos
+    website_url: https://bonobos.com
+    category: apparel
+    sources:
+      - type: newsletter
+        signup_url: https://bonobos.com/shop/email
+        priority: 100
+        wait_until: domcontentloaded
+        timeout_ms: 60000
+
+  # Patagonia Worn Wear
+  - slug: patagonia-worn-wear
+    name: Patagonia Worn Wear
+    website_url: https://wornwear.patagonia.com
+    category: apparel
+    sources:
+      - type: newsletter
+        signup_url: https://wornwear.patagonia.com/pages/email-signup
+        priority: 100
+        wait_until: domcontentloaded
+        timeout_ms: 60000
+
   # Resy
   - slug: resy
     name: Resy
