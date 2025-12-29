@@ -13,7 +13,7 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
     """Upsert stores and sources from YAML file.
 
     Returns:
-        dict with counts: {stores_created, stores_updated, sources_created}
+        dict with counts: {stores_created, stores_updated, stores_unchanged, sources_created, sources_updated}
     """
     path = Path(stores_path)
     if not path.exists():
@@ -27,7 +27,9 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
 
     stores_created = 0
     stores_updated = 0
+    stores_unchanged = 0
     sources_created = 0
+    sources_updated = 0
 
     with get_db() as session:
         for store_data in stores_data:
@@ -36,20 +38,46 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
 
             if existing:
                 # Update existing store
-                existing.name = store_data["name"]
-                existing.website_url = store_data.get("website_url")
-                existing.category = store_data.get("category")
-                existing.active = store_data.get("active", True)
+                updated = False
+                fields = {
+                    "name": store_data["name"],
+                    "website_url": store_data.get("website_url"),
+                    "tos_url": store_data.get("tos_url"),
+                    "category": store_data.get("category"),
+                    "active": store_data.get("active", True),
+                    "robots_policy": store_data.get("robots_policy"),
+                    "crawl_delay_seconds": store_data.get("crawl_delay_seconds"),
+                    "max_requests_per_run": store_data.get("max_requests_per_run"),
+                    "requires_login": store_data.get("requires_login", False),
+                    "allow_login": store_data.get("allow_login", False),
+                    "notes": store_data.get("notes"),
+                }
+
+                for field_name, value in fields.items():
+                    if getattr(existing, field_name) != value:
+                        setattr(existing, field_name, value)
+                        updated = True
+
                 store = existing
-                stores_updated += 1
+                if updated:
+                    stores_updated += 1
+                else:
+                    stores_unchanged += 1
             else:
                 # Create new store
                 store = Store(
                     slug=slug,
                     name=store_data["name"],
                     website_url=store_data.get("website_url"),
+                    tos_url=store_data.get("tos_url"),
                     category=store_data.get("category"),
                     active=store_data.get("active", True),
+                    robots_policy=store_data.get("robots_policy"),
+                    crawl_delay_seconds=store_data.get("crawl_delay_seconds"),
+                    max_requests_per_run=store_data.get("max_requests_per_run"),
+                    requires_login=store_data.get("requires_login", False),
+                    allow_login=store_data.get("allow_login", False),
+                    notes=store_data.get("notes"),
                 )
                 session.add(store)
                 session.flush()  # Get the ID
@@ -79,11 +107,17 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
                     sources_created += 1
                 else:
                     # Update priority if changed
-                    existing_source.priority = source_data.get("priority", 100)
-                    existing_source.active = source_data.get("active", True)
+                    priority = source_data.get("priority", 100)
+                    active = source_data.get("active", True)
+                    if existing_source.priority != priority or existing_source.active != active:
+                        existing_source.priority = priority
+                        existing_source.active = active
+                        sources_updated += 1
 
     return {
         "stores_created": stores_created,
         "stores_updated": stores_updated,
+        "stores_unchanged": stores_unchanged,
         "sources_created": sources_created,
+        "sources_updated": sources_updated,
     }

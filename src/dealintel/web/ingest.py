@@ -23,7 +23,6 @@ from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_s
 logger = structlog.get_logger()
 
 WEB_SOURCE_TYPES = {"web_url"}
-RATE_LIMIT_SECONDS = 30.0
 
 _last_request_at: dict[str, float] = {}
 _robots_cache: dict[str, RobotFileParser] = {}
@@ -44,14 +43,17 @@ def _extract_domain(url: str) -> str:
 
 def _respect_rate_limit(
     domain: str,
+    delay_seconds: float | None = None,
     *,
     now_fn: Callable[[], float] = time.monotonic,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> None:
+    if delay_seconds is None:
+        delay_seconds = settings.web_default_crawl_delay_seconds
     now = now_fn()
     last = _last_request_at.get(domain)
     if last is not None:
-        remaining = RATE_LIMIT_SECONDS - (now - last)
+        remaining = delay_seconds - (now - last)
         if remaining > 0:
             logger.info("Rate limiting web fetch", domain=domain, sleep_seconds=round(remaining, 2))
             sleep_fn(remaining)
@@ -126,6 +128,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
         "new": 0,
         "skipped": 0,
         "unchanged": 0,
+        "rate_limited": 0,
         "errors": 0,
     }
 
@@ -144,17 +147,34 @@ def ingest_web_sources() -> dict[str, int | bool]:
             logger.info("No web sources configured")
             return stats
 
+        request_counts: dict[str, int] = {}
+
         for source in sources:
             url = source.pattern
             store = source.store
 
             try:
+                store_slug = store.slug if store else "unknown"
+                max_requests = store.max_requests_per_run
+                if max_requests is None:
+                    max_requests = settings.web_default_max_requests_per_run
+
+                if max_requests is not None:
+                    used = request_counts.get(store_slug, 0)
+                    if used >= max_requests:
+                        logger.info("Per-store request limit reached", store=store_slug, max_requests=max_requests)
+                        stats["rate_limited"] += 1
+                        continue
+
                 if not _is_allowed_by_robots(url):
                     logger.warning("Robots.txt disallows crawling", url=url)
                     stats["skipped"] += 1
                     continue
 
-                _respect_rate_limit(_extract_domain(url))
+                _respect_rate_limit(
+                    _extract_domain(url),
+                    delay_seconds=store.crawl_delay_seconds if store else None,
+                )
                 logger.info("Fetching web source", url=url, store=store.slug)
 
                 result = fetch_url(url)
@@ -260,6 +280,9 @@ Store: {store.name}
                     stats["new"] += 1
 
                     logger.info("Web content ingested", url=url, store=store.slug)
+
+                if max_requests is not None:
+                    request_counts[store_slug] = request_counts.get(store_slug, 0) + 1
 
             except Exception:
                 logger.exception("Web ingest failed", url=url)

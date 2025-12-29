@@ -36,9 +36,11 @@ def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAM
         table = Table(title="Seed Results")
         table.add_column("Metric", style="cyan")
         table.add_column("Count", style="green")
-        table.add_row("Stores created", str(stats["stores_created"]))
-        table.add_row("Stores updated", str(stats["stores_updated"]))
-        table.add_row("Sources created", str(stats["sources_created"]))
+        table.add_row("Stores created", str(stats.get("stores_created", 0)))
+        table.add_row("Stores updated", str(stats.get("stores_updated", 0)))
+        table.add_row("Stores unchanged", str(stats.get("stores_unchanged", 0)))
+        table.add_row("Sources created", str(stats.get("sources_created", 0)))
+        table.add_row("Sources updated", str(stats.get("sources_updated", 0)))
 
         console.print(table)
         console.print("[bold green]Done![/bold green]")
@@ -49,6 +51,12 @@ def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAM
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
+
+
+@app.command()
+def sync_stores(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")) -> None:
+    """Sync stores from stores.yaml (YAML is source of truth)."""
+    seed(stores_path)
 
 
 @app.command()
