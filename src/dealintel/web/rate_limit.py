@@ -17,7 +17,15 @@ class RateLimiter:
     def __init__(self) -> None:
         self._last_request: dict[str, float] = {}
 
-    def wait(self, url: str, delay_seconds: float | None = None, *, now_fn: Callable[[], float] = time.monotonic) -> None:
+    def wait(
+        self,
+        url: str,
+        delay_seconds: float | None = None,
+        *,
+        now_fn: Callable[[], float] | None = None,
+    ) -> None:
+        if now_fn is None:
+            now_fn = time.monotonic
         if delay_seconds is None:
             delay_seconds = settings.web_default_crawl_delay_seconds
 

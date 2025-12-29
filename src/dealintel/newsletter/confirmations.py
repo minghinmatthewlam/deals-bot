@@ -142,4 +142,62 @@ def poll_confirmations(days: int = 7) -> dict[str, int | str]:
 
 
 def click_pending_confirmations(limit: int = 25) -> dict[str, int | str]:
-    stats: dict[str, int | str] = {\n        \"checked\": 0,\n        \"clicked\": 0,\n        \"needs_human\": 0,\n        \"errors\": 0,\n    }\n\n    runner = BrowserRunner()\n    queue = HumanAssistQueue()\n\n    with get_db() as session:\n        pending = (\n            session.query(NewsletterConfirmation)\n            .filter(NewsletterConfirmation.status == \"pending\")\n            .limit(limit)\n            .all()\n        )\n\n        for item in pending:\n            stats[\"checked\"] += 1\n            if not item.confirmation_link:\n                item.status = \"missing_link\"\n                continue\n\n            result = runner.fetch_page(\n                item.confirmation_link,\n                capture_screenshot_on_success=True,\n            )\n            if result.error:\n                item.status = \"failed\"\n                stats[\"errors\"] += 1\n                continue\n\n            if result.captcha_detected:\n                queue.enqueue(\n                    kind=\"captcha\",\n                    screenshot=Path(result.screenshot_path).read_bytes() if result.screenshot_path else None,\n                    context={\"url\": item.confirmation_link, \"store_id\": str(item.store_id)},\n                )\n                item.status = \"needs_human\"\n                stats[\"needs_human\"] += 1\n                continue\n\n            item.status = \"clicked\"\n            stats[\"clicked\"] += 1\n\n            if item.store_id:\n                subscription = (\n                    session.query(NewsletterSubscription)\n                    .filter_by(store_id=item.store_id)\n                    .order_by(NewsletterSubscription.created_at.desc())\n                    .first()\n                )\n                if subscription:\n                    subscription.status = \"confirmed\"\n                    subscription.state = \"SUBSCRIBED_CONFIRMED\"\n                    subscription.confirmed_at = datetime.now(UTC)\n\n    return stats
+    stats: dict[str, int | str] = {
+        "checked": 0,
+        "clicked": 0,
+        "needs_human": 0,
+        "errors": 0,
+    }
+
+    runner = BrowserRunner()
+    queue = HumanAssistQueue()
+
+    with get_db() as session:
+        pending = (
+            session.query(NewsletterConfirmation)
+            .filter(NewsletterConfirmation.status == "pending")
+            .limit(limit)
+            .all()
+        )
+
+        for item in pending:
+            stats["checked"] += 1
+            if not item.confirmation_link:
+                item.status = "missing_link"
+                continue
+
+            result = runner.fetch_page(
+                item.confirmation_link,
+                capture_screenshot_on_success=True,
+            )
+            if result.error:
+                item.status = "failed"
+                stats["errors"] += 1
+                continue
+
+            if result.captcha_detected:
+                queue.enqueue(
+                    kind="captcha",
+                    screenshot=Path(result.screenshot_path).read_bytes() if result.screenshot_path else None,
+                    context={"url": item.confirmation_link, "store_id": str(item.store_id)},
+                )
+                item.status = "needs_human"
+                stats["needs_human"] += 1
+                continue
+
+            item.status = "clicked"
+            stats["clicked"] += 1
+
+            if item.store_id:
+                subscription = (
+                    session.query(NewsletterSubscription)
+                    .filter_by(store_id=item.store_id)
+                    .order_by(NewsletterSubscription.created_at.desc())
+                    .first()
+                )
+                if subscription:
+                    subscription.status = "confirmed"
+                    subscription.state = "SUBSCRIBED_CONFIRMED"
+                    subscription.confirmed_at = datetime.now(UTC)
+
+    return stats
