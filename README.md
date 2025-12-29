@@ -28,6 +28,12 @@ make gmail-auth
 make run-dry
 ```
 
+Optional: interactive setup for store selection.
+
+```bash
+.venv/bin/python -m dealintel.cli init
+```
+
 ---
 
 ## Prerequisites
@@ -93,6 +99,23 @@ Source types:
 - `gmail_from_domain`: Domain match (fallback)
 
 Run `make seed` after editing to apply changes.
+
+### 2.1 Store Allowlist (Per-user Preferences)
+
+Use `preferences.yaml` to restrict which stores are included in runs:
+
+```yaml
+stores:
+  allowlist: ["cos", "corridor", "nike"]
+```
+
+CLI helpers:
+
+```bash
+.venv/bin/python -m dealintel.cli stores list
+.venv/bin/python -m dealintel.cli stores search nike
+.venv/bin/python -m dealintel.cli stores allowlist --set cos corridor nike
+```
 
 ### 2.5 Browser Automation (Playwright)
 

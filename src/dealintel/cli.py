@@ -4,12 +4,17 @@ import structlog
 import typer
 from rich.console import Console
 from rich.table import Table
+from pathlib import Path
+
+import yaml  # type: ignore[import-untyped]
 
 app = typer.Typer(
     name="dealintel",
     help="Deal Intelligence - Promotional email ingestion and digest generation.",
 )
 console = Console()
+stores_app = typer.Typer(help="Store discovery and allowlist helpers.")
+app.add_typer(stores_app, name="stores")
 
 # Configure structured logging
 structlog.configure(
@@ -21,6 +26,34 @@ structlog.configure(
     context_class=dict,
     logger_factory=structlog.PrintLoggerFactory(),
 )
+
+
+def _load_store_catalog(stores_path: str) -> list[dict]:
+    path = Path(stores_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Stores file not found: {stores_path}")
+    data = yaml.safe_load(path.read_text()) or {}
+    stores = data.get("stores", [])
+    if not isinstance(stores, list):
+        raise ValueError("stores.yaml must contain a list under 'stores'")
+    return stores
+
+
+def _parse_store_selection(selection: str, stores: list[dict]) -> list[str]:
+    tokens = [token.strip() for token in selection.split(",") if token.strip()]
+    if not tokens:
+        return []
+    if len(tokens) == 1 and tokens[0].lower() == "all":
+        return [store.get("slug", "").strip().lower() for store in stores if store.get("slug")]
+
+    slug_map = {str(i + 1): store.get("slug") for i, store in enumerate(stores)}
+    slugs: list[str] = []
+    for token in tokens:
+        if token in slug_map and slug_map[token]:
+            slugs.append(slug_map[token])
+        else:
+            slugs.append(token)
+    return slugs
 
 
 @app.command()
@@ -56,6 +89,62 @@ def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAM
 
 
 @app.command()
+def init(
+    stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file"),
+    prefs_path: str = typer.Option("preferences.yaml", help="Path to preferences file"),
+) -> None:
+    """Interactive onboarding for store selection and first run."""
+    from dealintel.prefs import load_preferences, set_store_allowlist
+
+    console.print("[bold blue]DealIntel Setup[/bold blue]")
+    try:
+        stores = _load_store_catalog(stores_path)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+    if not stores:
+        console.print("[yellow]No stores found in stores.yaml.[/yellow]")
+        raise typer.Exit(1)
+
+    table = Table(title="Available Stores")
+    table.add_column("#", style="cyan")
+    table.add_column("Slug", style="white")
+    table.add_column("Name", style="green")
+    table.add_column("Category", style="magenta")
+    for idx, store in enumerate(stores, start=1):
+        table.add_row(
+            str(idx),
+            store.get("slug", ""),
+            store.get("name", ""),
+            store.get("category", "") or "",
+        )
+    console.print(table)
+
+    selection = typer.prompt(
+        "Enter store slugs or numbers (comma-separated), or 'all'",
+        default="",
+    )
+    selected = _parse_store_selection(selection, stores)
+    if not selected:
+        console.print("[yellow]No stores selected; keeping existing allowlist.[/yellow]")
+    else:
+        normalized = set_store_allowlist(selected, prefs_path)
+        console.print(f"[green]Allowlist saved:[/green] {', '.join(normalized)}")
+
+    prefs = load_preferences(prefs_path)
+    if not prefs.stores.allowlist:
+        console.print("[yellow]Allowlist is empty; all stores will run.[/yellow]")
+
+    if typer.confirm("Run a dry-run now?", default=False):
+        from dealintel.jobs.daily import run_daily_pipeline
+
+        stats = run_daily_pipeline(dry_run=True)
+        if stats.get("digest", {}).get("preview_path"):
+            console.print(f"[green]Digest preview saved:[/green] {stats['digest']['preview_path']}")
+
+
+@app.command()
 def sync_stores(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")) -> None:
     """Sync stores from stores.yaml (YAML is source of truth)."""
     seed(stores_path)
@@ -79,6 +168,72 @@ def gmail_auth() -> None:
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
+
+
+@stores_app.command("list")
+def list_stores(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")) -> None:
+    """List available stores."""
+    stores = _load_store_catalog(stores_path)
+    table = Table(title="Stores")
+    table.add_column("Slug", style="white")
+    table.add_column("Name", style="green")
+    table.add_column("Category", style="magenta")
+    for store in stores:
+        table.add_row(store.get("slug", ""), store.get("name", ""), store.get("category", "") or "")
+    console.print(table)
+
+
+@stores_app.command("search")
+def search_stores(
+    query: str = typer.Argument(..., help="Search term"),
+    stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file"),
+) -> None:
+    """Search stores by slug or name."""
+    stores = _load_store_catalog(stores_path)
+    query_lower = query.lower()
+    matches = [
+        store
+        for store in stores
+        if query_lower in (store.get("slug", "").lower())
+        or query_lower in (store.get("name", "").lower())
+    ]
+    table = Table(title=f"Stores matching '{query}'")
+    table.add_column("Slug", style="white")
+    table.add_column("Name", style="green")
+    table.add_column("Category", style="magenta")
+    for store in matches:
+        table.add_row(store.get("slug", ""), store.get("name", ""), store.get("category", "") or "")
+    console.print(table)
+
+
+@stores_app.command("allowlist")
+def manage_allowlist(
+    set_: list[str] = typer.Option(None, "--set", help="Replace the allowlist"),
+    add: list[str] = typer.Option(None, "--add", help="Add stores to the allowlist"),
+    remove: list[str] = typer.Option(None, "--remove", help="Remove stores from the allowlist"),
+    prefs_path: str = typer.Option("preferences.yaml", help="Path to preferences file"),
+) -> None:
+    """Show or update the store allowlist."""
+    from dealintel.prefs import load_preferences, normalize_store_slugs, save_preferences
+
+    prefs = load_preferences(prefs_path)
+    current = set(normalize_store_slugs(prefs.stores.allowlist))
+
+    if set_:
+        updated = set(normalize_store_slugs(set_))
+    else:
+        updated = set(current)
+        if add:
+            updated.update(normalize_store_slugs(add))
+        if remove:
+            updated.difference_update(normalize_store_slugs(remove))
+
+    if set_ or add or remove:
+        prefs.stores.allowlist = sorted(updated)
+        save_preferences(prefs, prefs_path)
+        console.print(f"[green]Allowlist updated:[/green] {', '.join(prefs.stores.allowlist)}")
+    else:
+        console.print(f"[cyan]Current allowlist:[/cyan] {', '.join(sorted(current)) or '(none)'}")
 
 
 @app.command()
