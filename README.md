@@ -67,6 +67,9 @@ Optional variables:
 | `NEWSLETTER_SERVICE_EMAIL` | Service inbox address to use for newsletter signups |
 | `BROWSER_HEADLESS` | Run Playwright headless (`true`/`false`) |
 | `HUMAN_ASSIST_DIR` | Directory for human-assist tasks |
+| `GMAIL_LOOKBACK_DAYS` | Days of Gmail history to scan on initial/expired sync |
+| `GMAIL_MAX_MESSAGES` | Max Gmail messages to ingest per run (testing throttle) |
+| `EXTRACT_MAX_EMAILS` | Max pending emails to extract per run (testing throttle) |
 
 ### 2. Configure Stores
 
