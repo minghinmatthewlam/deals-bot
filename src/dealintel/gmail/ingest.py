@@ -117,7 +117,7 @@ def match_store(session: Session, from_address: str, from_domain: str) -> UUID |
 def ingest_emails() -> dict[str, int]:
     """Incremental sync using Gmail historyId."""
     service = get_gmail_service()
-    stats: dict[str, int] = {"fetched": 0, "new": 0, "matched": 0, "unmatched": 0, "errors": 0}
+    stats: dict[str, int] = {"fetched": 0, "new": 0, "matched": 0, "unmatched": 0, "errors": 0, "skipped": 0}
 
     with get_db() as session:
         state = get_or_create_gmail_state(session)
@@ -151,7 +151,14 @@ def ingest_emails() -> dict[str, int]:
 
             try:
                 # Fetch full message
-                msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+                try:
+                    msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+                except HttpError as e:
+                    if e.resp.status == 404:
+                        logger.warning("Message not found, skipping", msg_id=msg_id)
+                        stats["skipped"] += 1
+                        continue
+                    raise
 
                 # Parse headers
                 headers = parse_headers(msg)
