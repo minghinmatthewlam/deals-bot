@@ -1,3 +1,7 @@
+Read `~/dev/agent-guards/AGENTS.md` for global guidelines.
+
+---
+
 ## MCP Agent Mail — coordination for multi-agent workflows
 
 What it is
