@@ -43,6 +43,7 @@ class Store(Base):
     )
 
     sources: Mapped[list[StoreSource]] = relationship(back_populates="store", cascade="all, delete-orphan")
+    source_configs: Mapped[list[SourceConfig]] = relationship(back_populates="store", cascade="all, delete-orphan")
     emails: Mapped[list[EmailRaw]] = relationship(back_populates="store")
     promos: Mapped[list[Promo]] = relationship(back_populates="store", cascade="all, delete-orphan")
 
@@ -62,6 +63,30 @@ class StoreSource(Base):
     store: Mapped[Store] = relationship(back_populates="sources")
 
     __table_args__ = (UniqueConstraint("store_id", "source_type", "pattern"),)
+
+
+class SourceConfig(Base):
+    """Config for non-email ingestion sources (web, api, newsletter)."""
+
+    __tablename__ = "source_configs"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    store_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"))
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    tier: Mapped[int] = mapped_column(Integer, nullable=False)
+    config_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_successful_run: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    store: Mapped[Store] = relationship(back_populates="source_configs")
+
+    __table_args__ = (UniqueConstraint("store_id", "source_type", "config_key"),)
 
 
 class GmailState(Base):
@@ -150,6 +175,27 @@ class NewsletterConfirmation(Base):
     confirmation_link: Mapped[str | None] = mapped_column(String(1000))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NewsletterSubscription(Base):
+    """Track newsletter subscription state per store."""
+
+    __tablename__ = "newsletter_subscriptions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    store_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
+    email_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    state: Mapped[str | None] = mapped_column(String(50))
+    subscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_email_received: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class PromoExtraction(Base):

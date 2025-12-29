@@ -41,6 +41,8 @@ def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAM
         table.add_row("Stores unchanged", str(stats.get("stores_unchanged", 0)))
         table.add_row("Sources created", str(stats.get("sources_created", 0)))
         table.add_row("Sources updated", str(stats.get("sources_updated", 0)))
+        table.add_row("Source configs created", str(stats.get("source_configs_created", 0)))
+        table.add_row("Source configs updated", str(stats.get("source_configs_updated", 0)))
 
         console.print(table)
         console.print("[bold green]Done![/bold green]")
