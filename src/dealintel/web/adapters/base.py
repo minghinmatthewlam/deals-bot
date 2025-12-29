@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
@@ -17,11 +17,30 @@ class SourceTier(Enum):
     BROWSER = 4
 
 
+class SourceResultStatus(Enum):
+    SUCCESS = "success"
+    EMPTY = "empty"
+    FAILURE = "failure"
+    ERROR = "error"
+
+
 @dataclass(frozen=True)
 class SourceStatus:
     ok: bool
     message: str
     signals: int = 0
+
+
+@dataclass(frozen=True)
+class SourceResult:
+    status: SourceResultStatus
+    signals: list[RawSignal] = field(default_factory=list)
+    message: str | None = None
+    error_code: str | None = None
+    http_requests: int = 0
+    bytes_read: int = 0
+    duration_ms: int | None = None
+    sample_urls: list[str] = field(default_factory=list)
 
 
 class AdapterError(RuntimeError):
@@ -35,6 +54,6 @@ class SourceAdapter(Protocol):
     @property
     def source_type(self) -> str: ...
 
-    def discover(self) -> list[RawSignal]: ...
+    def discover(self) -> SourceResult: ...
 
     def health_check(self) -> SourceStatus: ...

@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import time
 from typing import Any
 
 from dealintel.ingest.signals import RawSignal
-from dealintel.web.adapters.base import AdapterError, SourceStatus, SourceTier
+from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
+from dealintel.web.budget import RequestBudget
 from dealintel.web.fetch import fetch_url
+from dealintel.web.policy import check_robots_policy
 from dealintel.web.rate_limit import RateLimiter
 
 
@@ -19,7 +22,15 @@ class JsonEndpointConfig:
 
 
 class JsonEndpointAdapter:
-    def __init__(self, store_id, config: dict[str, Any], rate_limiter: RateLimiter | None = None, crawl_delay_seconds: float | None = None):
+    def __init__(
+        self,
+        store_id,
+        config: dict[str, Any],
+        rate_limiter: RateLimiter | None = None,
+        crawl_delay_seconds: float | None = None,
+        robots_policy: str | None = None,
+        budget: RequestBudget | None = None,
+    ):
         url = config.get("url") or config.get("endpoint")
         if not url:
             raise AdapterError("Missing JSON endpoint url")
@@ -27,6 +38,8 @@ class JsonEndpointAdapter:
         self._config = JsonEndpointConfig(url=url)
         self._rate_limiter = rate_limiter or RateLimiter()
         self._crawl_delay_seconds = crawl_delay_seconds
+        self._robots_policy = robots_policy
+        self._budget = budget
 
     @property
     def tier(self) -> SourceTier:
@@ -38,15 +51,50 @@ class JsonEndpointAdapter:
 
     def health_check(self) -> SourceStatus:
         try:
+            allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+            if not allowed:
+                return SourceStatus(ok=False, message=reason)
             _ = self._fetch_json()
             return SourceStatus(ok=True, message="json ok")
         except Exception as exc:
             return SourceStatus(ok=False, message=str(exc))
 
-    def discover(self) -> list[RawSignal]:
-        data = self._fetch_json()
+    def discover(self) -> SourceResult:
+        start = time.monotonic()
+        allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+        if not allowed:
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message=reason,
+                error_code=reason,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
+
+        if self._budget and not self._budget.start_request():
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message="Request budget exhausted",
+                error_code="budget_exhausted",
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
+
+        try:
+            data = self._fetch_json()
+        except Exception as exc:
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message=str(exc),
+                error_code="fetch_failed",
+                http_requests=1,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
         payload = json.dumps(data, ensure_ascii=True)
-        return [
+        if self._budget:
+            self._budget.add_bytes(len(payload))
+        signals = [
             RawSignal(
                 store_id=self._store_id,
                 source_type="json",
@@ -57,6 +105,15 @@ class JsonEndpointAdapter:
                 metadata={},
             )
         ]
+        return SourceResult(
+            status=SourceResultStatus.SUCCESS,
+            signals=signals,
+            message="json ok",
+            http_requests=1,
+            bytes_read=len(payload),
+            duration_ms=int((time.monotonic() - start) * 1000),
+            sample_urls=[self._config.url],
+        )
 
     def _fetch_json(self) -> Any:
         self._rate_limiter.wait(self._config.url, self._crawl_delay_seconds)

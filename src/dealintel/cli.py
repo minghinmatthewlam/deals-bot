@@ -15,6 +15,8 @@ app = typer.Typer(
 console = Console()
 stores_app = typer.Typer(help="Store discovery and allowlist helpers.")
 app.add_typer(stores_app, name="stores")
+sources_app = typer.Typer(help="Source validation helpers.")
+app.add_typer(sources_app, name="sources")
 
 # Configure structured logging
 structlog.configure(
@@ -168,6 +170,114 @@ def gmail_auth() -> None:
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
+
+
+@sources_app.command("validate")
+def validate_sources(
+    store: str | None = typer.Option(None, "--store", help="Limit to a store slug"),
+) -> None:
+    """Validate source configurations with lightweight health checks."""
+    from dealintel.db import get_db
+    from dealintel.models import SourceConfig, Store
+    from dealintel.web.rate_limit import RateLimiter
+    from dealintel.web.tiered import build_adapter
+
+    with get_db() as session:
+        query = session.query(SourceConfig).join(Store).filter(SourceConfig.active == True)  # noqa: E712
+        if store:
+            query = query.filter(Store.slug == store)
+        configs = query.all()
+
+        table = Table(title="Source Validation")
+        table.add_column("Store", style="cyan")
+        table.add_column("Source", style="magenta")
+        table.add_column("Status", style="green")
+        table.add_column("Message", style="white")
+
+        rate_limiter = RateLimiter()
+        for cfg in configs:
+            store_row = session.query(Store).filter_by(id=cfg.store_id).first()
+            if not store_row:
+                continue
+            adapter = build_adapter(store_row, cfg, rate_limiter)
+            if not adapter:
+                continue
+            status = adapter.health_check()
+            table.add_row(
+                store_row.slug,
+                f"{cfg.source_type}",
+                "ok" if status.ok else "fail",
+                status.message,
+            )
+
+        console.print(table)
+
+
+@sources_app.command("debug")
+def debug_source(
+    store: str = typer.Argument(..., help="Store slug"),
+    source_type: str | None = typer.Option(None, "--source-type", help="Filter by source type"),
+    config_key: str | None = typer.Option(None, "--config-key", help="Filter by config key"),
+) -> None:
+    """Run a single source adapter and print its result."""
+    from dealintel.db import get_db
+    from dealintel.models import SourceConfig, Store
+    from dealintel.web.rate_limit import RateLimiter
+    from dealintel.web.tiered import build_adapter
+
+    with get_db() as session:
+        store_row = session.query(Store).filter_by(slug=store).first()
+        if not store_row:
+            console.print(f"[red]Store not found:[/red] {store}")
+            raise typer.Exit(1)
+
+        configs = [cfg for cfg in store_row.source_configs if cfg.active]
+        if source_type:
+            configs = [cfg for cfg in configs if cfg.source_type == source_type]
+        if config_key:
+            configs = [cfg for cfg in configs if cfg.config_key == config_key]
+
+        if not configs:
+            console.print("[yellow]No matching source configs found.[/yellow]")
+            raise typer.Exit(1)
+        if len(configs) > 1:
+            table = Table(title="Matching Sources")
+            table.add_column("Source", style="magenta")
+            table.add_column("Config Key", style="white")
+            for cfg in configs:
+                table.add_row(cfg.source_type, cfg.config_key)
+            console.print(table)
+            console.print("[yellow]Please specify --source-type and/or --config-key.[/yellow]")
+            raise typer.Exit(1)
+
+        cfg = configs[0]
+        adapter = build_adapter(store_row, cfg, RateLimiter())
+        if not adapter:
+            console.print("[red]Unable to build adapter.[/red]")
+            raise typer.Exit(1)
+
+        result = adapter.discover()
+        table = Table(title="Source Debug Result")
+        table.add_column("Field", style="cyan")
+        table.add_column("Value", style="white")
+        table.add_row("Store", store_row.slug)
+        table.add_row("Source", cfg.source_type)
+        table.add_row("Status", result.status.value)
+        table.add_row("Error Code", result.error_code or "")
+        table.add_row("Message", result.message or "")
+        table.add_row("Signals", str(len(result.signals)))
+        table.add_row("HTTP Requests", str(result.http_requests))
+        table.add_row("Bytes Read", str(result.bytes_read))
+        table.add_row("Duration (ms)", str(result.duration_ms or ""))
+
+        console.print(table)
+
+        if result.sample_urls:
+            urls = Table(title="Sample URLs")
+            urls.add_column("URL", style="white")
+            for url in result.sample_urls:
+                urls.add_row(url)
+            console.print(urls)
 
 
 @stores_app.command("list")
@@ -331,19 +441,23 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
                 )
             console.print(items_table)
 
-        web_failures = stats.get("ingest", {}).get("web", {}).get("failures") or []
-        if web_failures:
-            fail_table = Table(title="Web Ingest Failures")
-            fail_table.add_column("Store", style="cyan")
-            fail_table.add_column("Method", style="magenta")
-            fail_table.add_column("Error", style="red")
-            for failure in web_failures:
-                fail_table.add_row(
-                    str(failure.get("store", "")),
-                    str(failure.get("source_type", "")),
-                    str(failure.get("error", "")),
-                )
-            console.print(fail_table)
+        attempts = stats.get("ingest", {}).get("web", {}).get("attempts") or []
+        if attempts:
+            failures = [item for item in attempts if item.get("status") != "success"]
+            if failures:
+                fail_table = Table(title="Source Attempts (Non-Success)")
+                fail_table.add_column("Store", style="cyan")
+                fail_table.add_column("Method", style="magenta")
+                fail_table.add_column("Status", style="yellow")
+                fail_table.add_column("Reason", style="red")
+                for item in failures:
+                    fail_table.add_row(
+                        str(item.get("store", "")),
+                        str(item.get("source_type", "")),
+                        str(item.get("status", "")),
+                        str(item.get("message") or item.get("error_code") or ""),
+                    )
+                console.print(fail_table)
 
         if stats.get("success"):
             console.print("[bold green]Pipeline completed successfully![/bold green]")
@@ -429,19 +543,23 @@ def weekly(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview H
                 )
             console.print(items_table)
 
-        web_failures = stats.get("ingest", {}).get("web", {}).get("failures") or []
-        if web_failures:
-            fail_table = Table(title="Web Ingest Failures")
-            fail_table.add_column("Store", style="cyan")
-            fail_table.add_column("Method", style="magenta")
-            fail_table.add_column("Error", style="red")
-            for failure in web_failures:
-                fail_table.add_row(
-                    str(failure.get("store", "")),
-                    str(failure.get("source_type", "")),
-                    str(failure.get("error", "")),
-                )
-            console.print(fail_table)
+        attempts = stats.get("ingest", {}).get("web", {}).get("attempts") or []
+        if attempts:
+            failures = [item for item in attempts if item.get("status") != "success"]
+            if failures:
+                fail_table = Table(title="Source Attempts (Non-Success)")
+                fail_table.add_column("Store", style="cyan")
+                fail_table.add_column("Method", style="magenta")
+                fail_table.add_column("Status", style="yellow")
+                fail_table.add_column("Reason", style="red")
+                for item in failures:
+                    fail_table.add_row(
+                        str(item.get("store", "")),
+                        str(item.get("source_type", "")),
+                        str(item.get("status", "")),
+                        str(item.get("message") or item.get("error_code") or ""),
+                    )
+                console.print(fail_table)
 
         if stats.get("success"):
             console.print("[bold green]Weekly pipeline completed successfully![/bold green]")

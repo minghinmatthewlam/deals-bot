@@ -66,6 +66,7 @@ def ingest_inbound_eml_dir(eml_dir: str = DEFAULT_EML_DIR) -> dict[str, int | bo
                     gmail_message_id=message_id,
                     gmail_thread_id=None,
                     store_id=store_id,
+                    signal_key=message_id,
                     from_address=parsed.from_address,
                     from_domain=from_domain,
                     from_name=parsed.from_name,

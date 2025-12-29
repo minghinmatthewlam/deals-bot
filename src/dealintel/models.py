@@ -125,6 +125,7 @@ class EmailRaw(Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     gmail_message_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     gmail_thread_id: Mapped[str | None] = mapped_column(String(100))
+    signal_key: Mapped[str | None] = mapped_column(String(1000))
     store_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
     from_address: Mapped[str] = mapped_column(String(500), nullable=False)
     from_domain: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -141,6 +142,8 @@ class EmailRaw(Base):
     extraction_status: Mapped[str] = mapped_column(String(20), default="pending")
     extraction_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_emails_raw_signal_key", "store_id", "signal_key"),)
 
     store: Mapped[Store | None] = relationship(back_populates="emails")
     extraction: Mapped[PromoExtraction | None] = relationship(back_populates="email", uselist=False)

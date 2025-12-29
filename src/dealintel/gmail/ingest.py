@@ -201,10 +201,12 @@ def ingest_emails() -> dict[str, int]:
                     continue
 
                 # Create email record
+                signal_key = msg_id
                 email = EmailRaw(
                     gmail_message_id=msg_id,
                     gmail_thread_id=msg.get("threadId"),
                     store_id=store_id,
+                    signal_key=signal_key,
                     from_address=from_address,
                     from_domain=from_domain,
                     from_name=from_name,

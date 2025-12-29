@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import time
 from typing import Any
 from urllib.parse import urlparse
 
 from dealintel.browser.runner import BrowserRunner
 from dealintel.ingest.signals import RawSignal
-from dealintel.web.adapters.base import AdapterError, SourceStatus, SourceTier
+from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
+from dealintel.web.budget import RequestBudget
+from dealintel.web.policy import check_robots_policy
 from dealintel.web.parse import parse_web_html
 from dealintel.web.rate_limit import RateLimiter
 from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_sale_page
@@ -32,6 +35,8 @@ class BrowserAdapter:
         config: dict[str, Any],
         rate_limiter: RateLimiter | None = None,
         crawl_delay_seconds: float | None = None,
+        robots_policy: str | None = None,
+        budget: RequestBudget | None = None,
     ):
         url = config.get("url")
         if not url:
@@ -51,6 +56,8 @@ class BrowserAdapter:
         self._runner = BrowserRunner()
         self._rate_limiter = rate_limiter or RateLimiter()
         self._crawl_delay_seconds = crawl_delay_seconds
+        self._robots_policy = robots_policy
+        self._budget = budget
 
     @property
     def tier(self) -> SourceTier:
@@ -61,6 +68,9 @@ class BrowserAdapter:
         return "browser"
 
     def health_check(self) -> SourceStatus:
+        allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+        if not allowed:
+            return SourceStatus(ok=False, message=reason)
         result = self._runner.fetch_page(
             self._config.url,
             wait_selector=self._config.wait_selector,
@@ -71,7 +81,27 @@ class BrowserAdapter:
             return SourceStatus(ok=False, message=result.error)
         return SourceStatus(ok=True, message="browser ok")
 
-    def discover(self) -> list[RawSignal]:
+    def discover(self) -> SourceResult:
+        start = time.monotonic()
+        allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+        if not allowed:
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message=reason,
+                error_code=reason,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
+
+        if self._budget and not self._budget.start_request():
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message="Request budget exhausted",
+                error_code="budget_exhausted",
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
+
         self._rate_limiter.wait(self._config.url, self._crawl_delay_seconds)
         result = self._runner.fetch_page(
             self._config.url,
@@ -79,8 +109,19 @@ class BrowserAdapter:
             wait_until=self._config.wait_until,
             timeout_ms=self._config.timeout_ms,
         )
+        bytes_read = len(result.html or "")
+        if self._budget:
+            self._budget.add_bytes(bytes_read)
         if result.error or not result.html:
-            raise AdapterError(result.error or "browser fetch failed")
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message=result.error or "browser fetch failed",
+                error_code="browser_error",
+                http_requests=1,
+                bytes_read=bytes_read,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
 
         parsed = parse_web_html(result.html)
         canonical_url = parsed.canonical_url or self._config.url
@@ -101,7 +142,7 @@ class BrowserAdapter:
             "top_links": parsed.top_links,
         }
 
-        return [
+        signals = [
             RawSignal(
                 store_id=self._store_id,
                 source_type="browser",
@@ -112,3 +153,12 @@ class BrowserAdapter:
                 metadata=metadata,
             )
         ]
+        return SourceResult(
+            status=SourceResultStatus.SUCCESS,
+            signals=signals,
+            message="browser ok",
+            http_requests=1,
+            bytes_read=bytes_read,
+            duration_ms=int((time.monotonic() - start) * 1000),
+            sample_urls=[canonical_url],
+        )

@@ -2,41 +2,32 @@
 
 from __future__ import annotations
 
-import hashlib
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from urllib.parse import urlparse
-from urllib.robotparser import RobotFileParser
 
 import structlog
 
 from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
+from dealintel.ingest.keys import signal_message_id
 from dealintel.models import EmailRaw, StoreSource
 from dealintel.prefs import get_store_allowlist
+from dealintel.promos.normalize import normalize_url
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 from dealintel.web.fetch import USER_AGENT, fetch_url
 from dealintel.web.parse import html_to_text, parse_web_html
 from dealintel.web.parse_feed import FeedEntry, is_feed_content, parse_rss_feed
 from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_sale_page
+from dealintel.web.policy import check_robots_policy
 
 logger = structlog.get_logger()
 
 WEB_SOURCE_TYPES = {"web_url"}
 
 _last_request_at: dict[str, float] = {}
-_robots_cache: dict[str, RobotFileParser] = {}
-
-
-def _web_message_id(canonical_url: str, body_hash: str) -> str:
-    """Generate stable unique ID for web content.
-
-    Format: web:<url_hash_16>:<body_hash_16>
-    """
-    url_key = hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()[:16]
-    return f"web:{url_key}:{body_hash[:16]}"
 
 
 def _extract_domain(url: str) -> str:
@@ -63,43 +54,22 @@ def _respect_rate_limit(
     _last_request_at[domain] = now
 
 
-def _get_robot_parser(url: str) -> RobotFileParser:
-    parsed = urlparse(url)
-    domain = parsed.netloc
-    cached = _robots_cache.get(domain)
-    if cached:
-        return cached
-
-    robots_url = f"{parsed.scheme}://{domain}/robots.txt"
-    parser = RobotFileParser()
-    parser.set_url(robots_url)
-    try:
-        parser.read()
-    except Exception as exc:
-        logger.warning("Robots fetch failed; defaulting to allow", url=robots_url, error=str(exc))
-        setattr(parser, "allow_all", True)
-
-    _robots_cache[domain] = parser
-    return parser
-
-
 def _is_allowed_by_robots(
     url: str,
     user_agent: str = USER_AGENT,
     *,
     ignore_robots: bool | None = None,
+    robots_policy: str | None = None,
 ) -> bool:
     if ignore_robots is None:
         ignore_robots = settings.ingest_ignore_robots
     if ignore_robots:
         logger.warning("Ignoring robots.txt for web fetch", url=url)
         return True
-    parser = _get_robot_parser(url)
-    if getattr(parser, "disallow_all", False):
-        return False
-    if getattr(parser, "allow_all", False):
-        return True
-    return parser.can_fetch(user_agent, url)
+    allowed, reason = check_robots_policy(url, robots_policy=robots_policy)
+    if not allowed:
+        logger.warning("Robots policy disallowed", url=url, reason=reason)
+    return allowed
 
 
 def _format_feed_entry(entry: FeedEntry, store_name: str) -> str:
@@ -171,7 +141,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                         stats["rate_limited"] += 1
                         continue
 
-                if not _is_allowed_by_robots(url):
+                if not _is_allowed_by_robots(url, robots_policy=store.robots_policy if store else None):
                     logger.warning("Robots.txt disallows crawling", url=url)
                     stats["skipped"] += 1
                     continue
@@ -207,11 +177,16 @@ def ingest_web_sources() -> dict[str, int | bool]:
 
                     for entry in entries:
                         canonical_url = entry.link or result.final_url
+                        signal_key = normalize_url(canonical_url) or canonical_url
                         body_text = _format_feed_entry(entry, store.name)
                         body_hash = compute_body_hash(body_text)
-                        message_id = _web_message_id(canonical_url, body_hash)
+                        message_id = signal_message_id(f"{source.store_id}:{signal_key}", body_hash)
 
-                        existing = session.query(EmailRaw).filter_by(gmail_message_id=message_id).first()
+                        existing = (
+                            session.query(EmailRaw)
+                            .filter_by(store_id=source.store_id, signal_key=signal_key, body_hash=body_hash)
+                            .first()
+                        )
                         if existing:
                             stats["skipped"] += 1
                             continue
@@ -223,6 +198,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                             gmail_message_id=message_id,
                             gmail_thread_id=None,
                             store_id=source.store_id,
+                            signal_key=signal_key,
                             from_address="crawler@dealintel.local",
                             from_domain="dealintel.local",
                             from_name="DealIntel Crawler",
@@ -244,6 +220,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                 else:
                     parsed = parse_web_html(result.text)
                     canonical_url = parsed.canonical_url or result.final_url
+                    signal_key = normalize_url(canonical_url) or canonical_url
 
                     # Use a structured summary for apparel sale/clearance pages to reduce noisy product grids.
                     is_sale_page = store.category == "apparel" and any(
@@ -256,9 +233,13 @@ def ingest_web_sources() -> dict[str, int | bool]:
                         body_text = parsed.body_text
 
                     body_hash = compute_body_hash(body_text)
-                    message_id = _web_message_id(canonical_url, body_hash)
+                    message_id = signal_message_id(f"{source.store_id}:{signal_key}", body_hash)
 
-                    existing = session.query(EmailRaw).filter_by(gmail_message_id=message_id).first()
+                    existing = (
+                        session.query(EmailRaw)
+                        .filter_by(store_id=source.store_id, signal_key=signal_key, body_hash=body_hash)
+                        .first()
+                    )
 
                     if existing:
                         logger.debug("Content unchanged", url=url)
@@ -280,6 +261,7 @@ Store: {store.name}
                         gmail_message_id=message_id,
                         gmail_thread_id=None,
                         store_id=source.store_id,
+                        signal_key=signal_key,
                         from_address="crawler@dealintel.local",
                         from_domain="dealintel.local",
                         from_name="DealIntel Crawler",

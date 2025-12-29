@@ -6,14 +6,17 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import time
 from typing import Any
 from urllib.parse import urlparse
 
 import structlog
 
 from dealintel.ingest.signals import RawSignal
-from dealintel.web.adapters.base import AdapterError, SourceStatus, SourceTier
+from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
+from dealintel.web.budget import RequestBudget
 from dealintel.web.fetch import fetch_url
+from dealintel.web.policy import check_robots_policy
 from dealintel.web.rate_limit import RateLimiter
 from dealintel.web.parse import parse_web_html
 from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_sale_page
@@ -38,6 +41,8 @@ class SitemapAdapter:
         config: dict[str, Any],
         rate_limiter: RateLimiter | None = None,
         crawl_delay_seconds: float | None = None,
+        robots_policy: str | None = None,
+        budget: RequestBudget | None = None,
     ):
         include = config.get("include") or []
         exclude = config.get("exclude") or []
@@ -51,6 +56,8 @@ class SitemapAdapter:
         self._config = SitemapConfig(url=url, include=include, exclude=exclude, max_urls=max_urls)
         self._rate_limiter = rate_limiter or RateLimiter()
         self._crawl_delay_seconds = crawl_delay_seconds
+        self._robots_policy = robots_policy
+        self._budget = budget
 
     @property
     def tier(self) -> SourceTier:
@@ -62,21 +69,43 @@ class SitemapAdapter:
 
     def health_check(self) -> SourceStatus:
         try:
+            allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+            if not allowed:
+                return SourceStatus(ok=False, message=reason)
             _ = self._fetch_xml(self._config.url)
             return SourceStatus(ok=True, message="sitemap ok")
         except Exception as exc:
             return SourceStatus(ok=False, message=str(exc))
 
-    def discover(self) -> list[RawSignal]:
-        urls = self._collect_urls(self._config.url)
-        if not urls:
-            return []
+    def discover(self) -> SourceResult:
+        start = time.monotonic()
+        allowed, reason = check_robots_policy(self._config.url, self._robots_policy)
+        if not allowed:
+            return SourceResult(
+                status=SourceResultStatus.FAILURE,
+                signals=[],
+                message=reason,
+                error_code=reason,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
+
+        urls_result = self._collect_urls(self._config.url)
+        if not urls_result["urls"]:
+            return SourceResult(
+                status=SourceResultStatus.EMPTY,
+                signals=[],
+                message=urls_result["message"] or "no urls",
+                error_code=urls_result["error_code"],
+                http_requests=urls_result["http_requests"],
+                bytes_read=urls_result["bytes_read"],
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
 
         include_patterns = [re.compile(pat) for pat in self._config.include]
         exclude_patterns = [re.compile(pat) for pat in self._config.exclude]
 
         filtered = []
-        for url, lastmod in urls:
+        for url, lastmod in urls_result["urls"]:
             if include_patterns and not any(pat.search(url) for pat in include_patterns):
                 continue
             if exclude_patterns and any(pat.search(url) for pat in exclude_patterns):
@@ -87,9 +116,28 @@ class SitemapAdapter:
         filtered = filtered[: self._config.max_urls]
 
         signals: list[RawSignal] = []
+        budget_exhausted = False
+        http_requests = urls_result["http_requests"]
+        bytes_read = urls_result["bytes_read"]
         for url, lastmod in filtered:
+            if self._budget and not self._budget.start_request():
+                budget_exhausted = True
+                break
+            allowed, reason = check_robots_policy(url, self._robots_policy)
+            if not allowed:
+                continue
             self._rate_limiter.wait(url, self._crawl_delay_seconds)
-            result = fetch_url(url)
+            try:
+                result = fetch_url(url)
+            except Exception as exc:
+                logger.warning("Sitemap fetch failed", url=url, error=str(exc))
+                http_requests += 1
+                continue
+            http_requests += 1
+            if result.text:
+                bytes_read += len(result.text)
+                if self._budget:
+                    self._budget.add_bytes(len(result.text))
             if result.error or not result.text:
                 logger.warning("Sitemap fetch failed", url=url, error=result.error)
                 continue
@@ -126,7 +174,23 @@ class SitemapAdapter:
                 )
             )
 
-        return signals
+        if not signals:
+            status = SourceResultStatus.FAILURE if budget_exhausted else SourceResultStatus.EMPTY
+        else:
+            status = SourceResultStatus.SUCCESS
+
+        return SourceResult(
+            status=status,
+            signals=signals,
+            message="sitemap ok"
+            if signals
+            else ("request budget exhausted" if budget_exhausted else "no matching urls"),
+            error_code="budget_exhausted" if budget_exhausted else None,
+            http_requests=http_requests,
+            bytes_read=bytes_read,
+            duration_ms=int((time.monotonic() - start) * 1000),
+            sample_urls=[signal.url for signal in signals[:3] if signal.url],
+        )
 
     def _fetch_xml(self, url: str) -> str:
         self._rate_limiter.wait(url, self._crawl_delay_seconds)
@@ -135,8 +199,33 @@ class SitemapAdapter:
             raise AdapterError(f"Failed to fetch sitemap: {result.error}")
         return result.text
 
-    def _collect_urls(self, url: str) -> list[tuple[str, datetime | None]]:
-        xml_text = self._fetch_xml(url)
+    def _collect_urls(self, url: str) -> dict[str, Any]:
+        http_requests = 0
+        bytes_read = 0
+        if self._budget and not self._budget.start_request():
+            return {
+                "urls": [],
+                "message": "Request budget exhausted",
+                "error_code": "budget_exhausted",
+                "http_requests": http_requests,
+                "bytes_read": bytes_read,
+            }
+
+        try:
+            xml_text = self._fetch_xml(url)
+        except Exception as exc:
+            return {
+                "urls": [],
+                "message": str(exc),
+                "error_code": "fetch_failed",
+                "http_requests": http_requests + 1,
+                "bytes_read": bytes_read,
+            }
+        http_requests += 1
+        bytes_read += len(xml_text or "")
+        if self._budget:
+            self._budget.add_bytes(len(xml_text or ""))
+
         root = ET.fromstring(xml_text)
         tag = root.tag.lower()
 
@@ -146,8 +235,17 @@ class SitemapAdapter:
                 loc = child.findtext("{*}loc")
                 if not loc:
                     continue
-                urls.extend(self._collect_urls(loc))
-            return urls
+                child_result = self._collect_urls(loc)
+                urls.extend(child_result["urls"])
+                http_requests += child_result["http_requests"]
+                bytes_read += child_result["bytes_read"]
+            return {
+                "urls": urls,
+                "message": None,
+                "error_code": None,
+                "http_requests": http_requests,
+                "bytes_read": bytes_read,
+            }
 
         if "urlset" in tag:
             urls: list[tuple[str, datetime | None]] = []
@@ -163,6 +261,18 @@ class SitemapAdapter:
                     except ValueError:
                         lastmod = None
                 urls.append((loc.strip(), lastmod))
-            return urls
+            return {
+                "urls": urls,
+                "message": None,
+                "error_code": None,
+                "http_requests": http_requests,
+                "bytes_read": bytes_read,
+            }
 
-        raise AdapterError("Unsupported sitemap format")
+        return {
+            "urls": [],
+            "message": "Unsupported sitemap format",
+            "error_code": "parse_error",
+            "http_requests": http_requests,
+            "bytes_read": bytes_read,
+        }
