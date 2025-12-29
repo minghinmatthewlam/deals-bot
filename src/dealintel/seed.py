@@ -130,6 +130,15 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
                 source_type = source_data["type"]
                 normalized_type = _normalize_source_type(source_type)
 
+                if source_type == "web_url":
+                    url = source_data.get("pattern") or source_data.get("url", "")
+                    if isinstance(url, str):
+                        lowered = url.lower()
+                        if "feed" in lowered or "rss" in lowered:
+                            normalized_type = "rss"
+                        elif lowered.endswith(".xml"):
+                            normalized_type = "sitemap"
+
                 if source_type.startswith("gmail_"):
                     existing_source = (
                         session.query(StoreSource)
@@ -162,6 +171,8 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
                     continue
 
                 config = {key: value for key, value in source_data.items() if key not in {"type", "priority"}}
+                if "pattern" in config and "url" not in config:
+                    config["url"] = config.pop("pattern")
                 config_key = _source_config_key(config)
                 tier = _source_tier(normalized_type, source_data.get("tier"))
 

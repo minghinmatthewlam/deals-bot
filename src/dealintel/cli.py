@@ -171,14 +171,110 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
 
 
 @app.command()
-def confirmations(days: int = typer.Option(7, help="Days to look back if history cursor is missing")) -> None:
+def weekly(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML instead of sending email")) -> None:
+    """Run weekly pipeline (newsletter + tiered web ingest)."""
+    from dealintel.jobs.weekly import run_weekly_pipeline
+
+    if dry_run:
+        console.print("[bold blue]Running weekly pipeline in dry-run mode...[/bold blue]")
+    else:
+        console.print("[bold blue]Running weekly pipeline...[/bold blue]")
+
+    try:
+        stats = run_weekly_pipeline(dry_run=dry_run)
+
+        if stats.get("error"):
+            console.print(f"[bold yellow]Warning:[/bold yellow] {stats['error']}")
+
+        table = Table(title="Weekly Pipeline Results")
+        table.add_column("Phase", style="cyan")
+        table.add_column("Metric", style="white")
+        table.add_column("Value", style="green")
+
+        if stats.get("newsletter"):
+            table.add_row("Newsletter", "Attempted", str(stats["newsletter"].get("attempted", 0)))
+            table.add_row("", "Submitted", str(stats["newsletter"].get("submitted", 0)))
+            table.add_row("", "Confirmed", str(stats["newsletter"].get("confirmed", 0)))
+            table.add_row("", "Failed", str(stats["newsletter"].get("failed", 0)))
+
+        if stats.get("confirmations"):
+            table.add_row("Confirmations", "Matched", str(stats["confirmations"].get("matched", 0)))
+            table.add_row("", "Stored", str(stats["confirmations"].get("stored", 0)))
+
+        ingest = stats.get("ingest") or {}
+        if ingest:
+            table.add_row("Ingest", "Sources", str(ingest.get("sources", 0)))
+            table.add_row("", "Signals", str(ingest.get("signals", 0)))
+            table.add_row("", "New", str(ingest.get("new", 0)))
+            table.add_row("", "Errors", str(ingest.get("errors", 0)))
+
+        if stats.get("extract"):
+            table.add_row("Extract", "Processed", str(stats["extract"].get("processed", 0)))
+            table.add_row("", "Succeeded", str(stats["extract"].get("succeeded", 0)))
+            table.add_row("", "Failed", str(stats["extract"].get("failed", 0)))
+
+        if stats.get("merge"):
+            table.add_row("Merge", "Created", str(stats["merge"].get("created", 0)))
+            table.add_row("", "Updated", str(stats["merge"].get("updated", 0)))
+
+        if stats.get("digest"):
+            table.add_row("Digest", "Promos", str(stats["digest"].get("promo_count", 0)))
+            table.add_row("", "Stores", str(stats["digest"].get("store_count", 0)))
+            if dry_run and stats["digest"].get("preview_path"):
+                table.add_row("", "Preview", stats["digest"]["preview_path"])
+            elif stats["digest"].get("sent"):
+                table.add_row("", "Sent", "Yes")
+
+        console.print(table)
+
+        if stats.get("success"):
+            console.print("[bold green]Weekly pipeline completed successfully![/bold green]")
+        else:
+            console.print("[bold yellow]Weekly pipeline completed with warnings.[/bold yellow]")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def newsletter_subscribe() -> None:
+    """Run newsletter subscription agent."""
+    from dealintel.newsletter.agent import NewsletterAgent
+
+    console.print("[bold blue]Running newsletter subscription agent...[/bold blue]")
+
+    try:
+        agent = NewsletterAgent()
+        stats = agent.subscribe_all()
+
+        table = Table(title="Newsletter Subscription Results")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+
+        for key in ("attempted", "submitted", "confirmed", "failed"):
+            table.add_row(key.replace("_", " ").title(), str(stats.get(key, 0)))
+
+        console.print(table)
+        console.print("[bold green]Newsletter subscription run completed![/bold green]")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def confirmations(
+    days: int = typer.Option(7, help="Days to look back if history cursor is missing"),
+    click_links: bool = typer.Option(True, help="Click pending confirmation links"),
+) -> None:
     """Poll for newsletter confirmation emails."""
     from dealintel.jobs.confirmations import run_confirmation_poll
 
     console.print("[bold blue]Polling confirmation emails...[/bold blue]")
 
     try:
-        stats = run_confirmation_poll(days=days)
+        stats = run_confirmation_poll(days=days, click_links=click_links)
 
         if stats.get("error"):
             console.print(f"[bold yellow]Warning:[/bold yellow] {stats['error']}")
@@ -188,6 +284,10 @@ def confirmations(days: int = typer.Option(7, help="Days to look back if history
         table.add_column("Value", style="green")
 
         for key in ("scanned", "matched", "stored", "skipped_existing", "missing_link"):
+            if key in stats:
+                table.add_row(key.replace("_", " ").title(), str(stats[key]))
+
+        for key in ("click_checked", "click_clicked", "click_needs_human", "click_errors"):
             if key in stats:
                 table.add_row(key.replace("_", " ").title(), str(stats[key]))
 

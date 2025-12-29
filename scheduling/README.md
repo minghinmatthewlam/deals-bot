@@ -16,17 +16,20 @@ This directory contains configuration files for automated daily execution.
    # Copy template
    cp scheduling/com.dealintel.daily.plist ~/Library/LaunchAgents/
    cp scheduling/com.dealintel.confirmations.plist ~/Library/LaunchAgents/
+   cp scheduling/com.dealintel.weekly.plist ~/Library/LaunchAgents/
 
    # Edit with your actual path
    # Replace all instances of /path/to/deal-intel with your actual path
    nano ~/Library/LaunchAgents/com.dealintel.daily.plist
    nano ~/Library/LaunchAgents/com.dealintel.confirmations.plist
+   nano ~/Library/LaunchAgents/com.dealintel.weekly.plist
    ```
 
 3. **Load the job:**
    ```bash
    launchctl load ~/Library/LaunchAgents/com.dealintel.daily.plist
    launchctl load ~/Library/LaunchAgents/com.dealintel.confirmations.plist
+   launchctl load ~/Library/LaunchAgents/com.dealintel.weekly.plist
    ```
 
 4. **Verify it's loaded:**
@@ -36,39 +39,45 @@ This directory contains configuration files for automated daily execution.
 
 ### Manual Test
 
-```bash
-# Trigger immediately for testing
-launchctl start com.dealintel.daily
-launchctl start com.dealintel.confirmations
+   ```bash
+   # Trigger immediately for testing
+   launchctl start com.dealintel.daily
+   launchctl start com.dealintel.confirmations
+   launchctl start com.dealintel.weekly
 
-# Check logs
-tail -f /path/to/deal-intel/logs/launchd.log
-tail -f /path/to/deal-intel/logs/confirmations.log
-```
+   # Check logs
+   tail -f /path/to/deal-intel/logs/launchd.log
+   tail -f /path/to/deal-intel/logs/confirmations.log
+   tail -f /path/to/deal-intel/logs/weekly.log
+   ```
 
 ### Unload
 
-```bash
-launchctl unload ~/Library/LaunchAgents/com.dealintel.daily.plist
-launchctl unload ~/Library/LaunchAgents/com.dealintel.confirmations.plist
-```
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.dealintel.daily.plist
+   launchctl unload ~/Library/LaunchAgents/com.dealintel.confirmations.plist
+   launchctl unload ~/Library/LaunchAgents/com.dealintel.weekly.plist
+   ```
 
 ### Troubleshooting
 
-```bash
-# Validate plist syntax
-plutil -lint ~/Library/LaunchAgents/com.dealintel.daily.plist
-plutil -lint ~/Library/LaunchAgents/com.dealintel.confirmations.plist
+   ```bash
+   # Validate plist syntax
+   plutil -lint ~/Library/LaunchAgents/com.dealintel.daily.plist
+   plutil -lint ~/Library/LaunchAgents/com.dealintel.confirmations.plist
+   plutil -lint ~/Library/LaunchAgents/com.dealintel.weekly.plist
 
 # Check recent runs
 log show --predicate 'subsystem == "com.apple.xpc.launchd"' --last 1h | grep dealintel
 
-# View logs
-cat /path/to/deal-intel/logs/launchd.log
-cat /path/to/deal-intel/logs/launchd.err
-cat /path/to/deal-intel/logs/confirmations.log
-cat /path/to/deal-intel/logs/confirmations.err
-```
+   # View logs
+   cat /path/to/deal-intel/logs/launchd.log
+   cat /path/to/deal-intel/logs/launchd.err
+   cat /path/to/deal-intel/logs/confirmations.log
+   cat /path/to/deal-intel/logs/confirmations.err
+   cat /path/to/deal-intel/logs/weekly.log
+   cat /path/to/deal-intel/logs/weekly.err
+   ```
 
 ---
 
@@ -92,6 +101,8 @@ cat /path/to/deal-intel/logs/confirmations.err
    0 10 * * * cd /path/to/deal-intel && .venv/bin/dealintel run >> logs/cron.log 2>&1
    # Deal Intelligence - Confirmation poller
    0 9 * * * cd /path/to/deal-intel && .venv/bin/dealintel confirmations >> logs/confirmations.log 2>&1
+   # Deal Intelligence - Weekly pipeline (Sunday)
+   0 11 * * 0 cd /path/to/deal-intel && .venv/bin/dealintel weekly >> logs/weekly.log 2>&1
    ```
 
 4. **Verify:**

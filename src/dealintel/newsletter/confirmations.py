@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 
+from dealintel.browser.runner import BrowserRunner
 from dealintel.db import get_db
+from dealintel.human_assist import HumanAssistQueue
 from dealintel.gmail.ingest import fetch_by_date, fetch_via_history, get_gmail_service, match_store
 from dealintel.gmail.parse import parse_body, parse_from_address, parse_headers
-from dealintel.models import InboxState, NewsletterConfirmation
+from dealintel.models import InboxState, NewsletterConfirmation, NewsletterSubscription
 
 logger = structlog.get_logger()
 
@@ -136,3 +139,7 @@ def poll_confirmations(days: int = 7) -> dict[str, int | str]:
             state.last_history_id = new_history_id
 
     return stats
+
+
+def click_pending_confirmations(limit: int = 25) -> dict[str, int | str]:
+    stats: dict[str, int | str] = {\n        \"checked\": 0,\n        \"clicked\": 0,\n        \"needs_human\": 0,\n        \"errors\": 0,\n    }\n\n    runner = BrowserRunner()\n    queue = HumanAssistQueue()\n\n    with get_db() as session:\n        pending = (\n            session.query(NewsletterConfirmation)\n            .filter(NewsletterConfirmation.status == \"pending\")\n            .limit(limit)\n            .all()\n        )\n\n        for item in pending:\n            stats[\"checked\"] += 1\n            if not item.confirmation_link:\n                item.status = \"missing_link\"\n                continue\n\n            result = runner.fetch_page(\n                item.confirmation_link,\n                capture_screenshot_on_success=True,\n            )\n            if result.error:\n                item.status = \"failed\"\n                stats[\"errors\"] += 1\n                continue\n\n            if result.captcha_detected:\n                queue.enqueue(\n                    kind=\"captcha\",\n                    screenshot=Path(result.screenshot_path).read_bytes() if result.screenshot_path else None,\n                    context={\"url\": item.confirmation_link, \"store_id\": str(item.store_id)},\n                )\n                item.status = \"needs_human\"\n                stats[\"needs_human\"] += 1\n                continue\n\n            item.status = \"clicked\"\n            stats[\"clicked\"] += 1\n\n            if item.store_id:\n                subscription = (\n                    session.query(NewsletterSubscription)\n                    .filter_by(store_id=item.store_id)\n                    .order_by(NewsletterSubscription.created_at.desc())\n                    .first()\n                )\n                if subscription:\n                    subscription.status = \"confirmed\"\n                    subscription.state = \"SUBSCRIBED_CONFIRMED\"\n                    subscription.confirmed_at = datetime.now(UTC)\n\n    return stats

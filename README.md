@@ -37,6 +37,7 @@ make run-dry
 - Gmail account with API access enabled
 - OpenAI API key
 - SendGrid API key (for email delivery)
+- Playwright browsers (for browser automation)
 
 ---
 
@@ -58,6 +59,14 @@ Required variables:
 | `SENDGRID_API_KEY` | SendGrid API key for digest delivery |
 | `DIGEST_RECIPIENT` | Email address to receive daily digests |
 | `DIGEST_FROM_EMAIL` | Verified sender email in SendGrid |
+
+Optional variables:
+
+| Variable | Description |
+|----------|-------------|
+| `NEWSLETTER_SERVICE_EMAIL` | Service inbox address to use for newsletter signups |
+| `BROWSER_HEADLESS` | Run Playwright headless (`true`/`false`) |
+| `HUMAN_ASSIST_DIR` | Directory for human-assist tasks |
 
 ### 2. Configure Stores
 
@@ -81,6 +90,14 @@ Source types:
 - `gmail_from_domain`: Domain match (fallback)
 
 Run `make seed` after editing to apply changes.
+
+### 2.5 Browser Automation (Playwright)
+
+Install browser binaries once:
+
+```bash
+.venv/bin/playwright install chromium
+```
 
 ### 3. Gmail API Setup
 
@@ -106,6 +123,8 @@ make migrate       # Run database migrations
 make seed          # Load store configurations
 make run           # Run full pipeline
 make run-dry       # Run without sending emails
+make weekly        # Run weekly pipeline (newsletter + tiered web ingest)
+make newsletter-subscribe # Run newsletter subscription agent
 make confirmations # Poll for newsletter confirmation emails
 make test          # Run test suite
 make lint          # Run linters
