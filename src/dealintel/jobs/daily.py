@@ -9,6 +9,7 @@ import structlog
 
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
 from dealintel.digest.render import generate_digest
+from dealintel.ingest.dedupe import dedupe_pending_emails
 from dealintel.ingest.router import ingest_all_sources
 from dealintel.llm.extract import extract_promos
 from dealintel.models import EmailRaw, PromoExtraction, Run
@@ -25,9 +26,10 @@ def process_pending_emails() -> dict[str, int]:
     Returns:
         dict with counts: {processed, succeeded, failed}
     """
-    stats: dict[str, int] = {"processed": 0, "succeeded": 0, "failed": 0}
+    stats: dict[str, int] = {"processed": 0, "succeeded": 0, "failed": 0, "skipped_duplicates": 0}
 
     with get_db() as session:
+        stats["skipped_duplicates"] = dedupe_pending_emails(session)
         pending = session.query(EmailRaw).filter_by(extraction_status="pending").all()
         stats["processed"] = len(pending)
 

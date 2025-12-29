@@ -140,6 +140,7 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
             table.add_row("Extract", "Processed", str(stats["extract"].get("processed", 0)))
             table.add_row("", "Succeeded", str(stats["extract"].get("succeeded", 0)))
             table.add_row("", "Failed", str(stats["extract"].get("failed", 0)))
+            table.add_row("", "Skipped duplicates", str(stats["extract"].get("skipped_duplicates", 0)))
 
         # Merge stats
         if stats.get("merge"):
