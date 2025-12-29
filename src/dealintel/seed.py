@@ -17,6 +17,7 @@ SOURCE_TYPE_ALIASES = {
     "json_endpoint": "json",
     "api": "json",
 }
+LEGACY_WEB_SOURCE_TYPES = {"web_url"}
 
 SOURCE_TIER_DEFAULTS = {
     "sitemap": 1,
@@ -175,6 +176,7 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
                     config["url"] = config.pop("pattern")
                 config_key = _source_config_key(config)
                 tier = _source_tier(normalized_type, source_data.get("tier"))
+                legacy_url = config.get("url") if isinstance(config.get("url"), str) else None
 
                 existing_config = (
                     session.query(SourceConfig)
@@ -208,6 +210,16 @@ def seed_stores(stores_path: str = "stores.yaml") -> dict[str, int]:
                         updated = True
                     if updated:
                         source_configs_updated += 1
+
+                if legacy_url:
+                    legacy_source = (
+                        session.query(StoreSource)
+                        .filter_by(store_id=store.id, source_type="web_url", pattern=legacy_url)
+                        .first()
+                    )
+                    if legacy_source and legacy_source.active:
+                        legacy_source.active = False
+                        sources_updated += 1
 
     return {
         "stores_created": stores_created,
