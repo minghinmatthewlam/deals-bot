@@ -15,6 +15,7 @@ from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.human_assist import HumanAssistQueue
 from dealintel.models import NewsletterSubscription, SourceConfig, Store
+from dealintel.prefs import get_store_allowlist
 
 logger = structlog.get_logger()
 
@@ -41,10 +42,13 @@ class NewsletterAgent:
                 .filter_by(source_type="newsletter", active=True)
                 .all()
             )
+            allowlist = get_store_allowlist()
 
             for config in configs:
                 store = session.query(Store).filter_by(id=config.store_id).first()
                 if not store:
+                    continue
+                if allowlist and store.slug not in allowlist:
                     continue
 
                 stats["attempted"] += 1

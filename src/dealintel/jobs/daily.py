@@ -13,7 +13,8 @@ from dealintel.digest.render import generate_digest
 from dealintel.ingest.dedupe import dedupe_pending_emails
 from dealintel.ingest.router import ingest_all_sources
 from dealintel.llm.extract import extract_promos
-from dealintel.models import EmailRaw, PromoExtraction, Run
+from dealintel.models import EmailRaw, PromoExtraction, Run, Store
+from dealintel.prefs import get_store_allowlist
 from dealintel.outbound.sendgrid_client import send_digest_email
 from dealintel.promos.merge import merge_extracted_promos
 from dealintel.seed import seed_stores
@@ -36,6 +37,9 @@ def process_pending_emails() -> dict[str, int]:
             .filter_by(extraction_status="pending")
             .order_by(EmailRaw.received_at.desc())
         )
+        allowlist = get_store_allowlist()
+        if allowlist:
+            pending_query = pending_query.join(Store).filter(Store.slug.in_(allowlist))
         limit = settings.extract_max_emails
         pending = pending_query.limit(limit).all() if limit else pending_query.all()
         stats["processed"] = len(pending)

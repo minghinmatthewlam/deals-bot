@@ -12,8 +12,13 @@ class FlightPrefs(BaseModel):
     max_price_usd: dict[str, float] = Field(default_factory=dict)
 
 
+class StorePrefs(BaseModel):
+    allowlist: list[str] = Field(default_factory=list)
+
+
 class Preferences(BaseModel):
     flights: FlightPrefs = Field(default_factory=FlightPrefs)
+    stores: StorePrefs = Field(default_factory=StorePrefs)
 
 
 def load_preferences(path: str = "preferences.yaml") -> Preferences:
@@ -21,3 +26,8 @@ def load_preferences(path: str = "preferences.yaml") -> Preferences:
     if not p.exists():
         return Preferences()
     return Preferences.model_validate(yaml.safe_load(p.read_text()) or {})
+
+
+def get_store_allowlist(path: str = "preferences.yaml") -> set[str]:
+    prefs = load_preferences(path)
+    return {slug.strip().lower() for slug in prefs.stores.allowlist if slug and slug.strip()}

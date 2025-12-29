@@ -7,7 +7,8 @@ import structlog
 from sqlalchemy.orm import Session
 
 from dealintel.db import get_db
-from dealintel.models import Promo, PromoChange, Run
+from dealintel.models import Promo, PromoChange, Run, Store
+from dealintel.prefs import get_store_allowlist
 
 
 class DigestItem(TypedDict):
@@ -50,21 +51,25 @@ def select_digest_promos() -> list[DigestItem]:
         session.expire_on_commit = False
         since = get_last_digest_time(session)
         logger.info("Selecting promos since", since=since.isoformat())
+        allowlist = get_store_allowlist()
 
         results: list[DigestItem] = []
         seen = set()
 
         # NEW promos (created since last digest)
-        new_changes = (
+        new_changes_query = (
             session.query(PromoChange)
             .join(Promo)
+            .join(Store)
             .filter(
                 PromoChange.change_type == "created",
                 PromoChange.changed_at > since,
                 Promo.status == "active",
             )
-            .all()
         )
+        if allowlist:
+            new_changes_query = new_changes_query.filter(Store.slug.in_(allowlist))
+        new_changes = new_changes_query.all()
 
         for change in new_changes:
             if change.promo_id not in seen:
@@ -79,16 +84,19 @@ def select_digest_promos() -> list[DigestItem]:
                 )
 
         # UPDATED promos (changes since last digest, but not newly created)
-        update_changes = (
+        update_changes_query = (
             session.query(PromoChange)
             .join(Promo)
+            .join(Store)
             .filter(
                 PromoChange.change_type != "created",
                 PromoChange.changed_at > since,
                 Promo.status == "active",
             )
-            .all()
         )
+        if allowlist:
+            update_changes_query = update_changes_query.filter(Store.slug.in_(allowlist))
+        update_changes = update_changes_query.all()
 
         for change in update_changes:
             if change.promo_id not in seen:

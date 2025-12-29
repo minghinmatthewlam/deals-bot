@@ -13,7 +13,8 @@ from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.auth import get_credentials
 from dealintel.gmail.parse import compute_body_hash, parse_body, parse_from_address, parse_headers
-from dealintel.models import EmailRaw, GmailState, StoreSource
+from dealintel.models import EmailRaw, GmailState, Store, StoreSource
+from dealintel.prefs import get_store_allowlist
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 
 logger = structlog.get_logger()
@@ -118,10 +119,24 @@ def match_store(session: Session, from_address: str, from_domain: str) -> UUID |
 def ingest_emails() -> dict[str, int]:
     """Incremental sync using Gmail historyId."""
     service = get_gmail_service()
-    stats: dict[str, int] = {"fetched": 0, "new": 0, "matched": 0, "unmatched": 0, "errors": 0, "skipped": 0}
+    stats: dict[str, int] = {
+        "fetched": 0,
+        "new": 0,
+        "matched": 0,
+        "unmatched": 0,
+        "errors": 0,
+        "skipped": 0,
+        "filtered": 0,
+    }
 
     with get_db() as session:
         state = get_or_create_gmail_state(session)
+        allowlist = get_store_allowlist()
+        allowed_store_ids = None
+        if allowlist:
+            allowed_store_ids = {
+                store.id for store in session.query(Store).filter(Store.slug.in_(allowlist)).all()
+            }
 
         if state.last_history_id:
             # Incremental sync
@@ -180,6 +195,10 @@ def ingest_emails() -> dict[str, int]:
 
                 # Match to store
                 store_id = match_store(session, from_address, from_domain)
+
+                if allowed_store_ids is not None and store_id not in allowed_store_ids:
+                    stats["filtered"] += 1
+                    continue
 
                 # Create email record
                 email = EmailRaw(

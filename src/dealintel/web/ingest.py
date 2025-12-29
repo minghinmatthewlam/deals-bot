@@ -15,6 +15,7 @@ from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.models import EmailRaw, StoreSource
+from dealintel.prefs import get_store_allowlist
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 from dealintel.web.fetch import USER_AGENT, fetch_url
 from dealintel.web.parse import html_to_text, parse_web_html
@@ -134,6 +135,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
     }
 
     with get_db() as session:
+        allowlist = get_store_allowlist()
         sources = (
             session.query(StoreSource)
             .filter(
@@ -142,6 +144,8 @@ def ingest_web_sources() -> dict[str, int | bool]:
             )
             .all()
         )
+        if allowlist:
+            sources = [source for source in sources if source.store and source.store.slug in allowlist]
         stats["sources"] = len(sources)
 
         if not sources:

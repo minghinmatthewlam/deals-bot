@@ -4,3 +4,5 @@ flights:
   max_price_usd:
     Europe: 600
     Asia: 1000
+stores:
+  allowlist: ["cos", "corridor", "nike"]

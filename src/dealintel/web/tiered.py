@@ -13,6 +13,7 @@ from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.ingest.signals import RawSignal
 from dealintel.models import EmailRaw, SourceConfig, Store, StoreSource
+from dealintel.prefs import get_store_allowlist
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 from dealintel.web.adapters.base import AdapterError, SourceTier
 from dealintel.web.adapters.browser import BrowserAdapter
@@ -39,7 +40,10 @@ def ingest_tiered_sources() -> dict[str, int | bool]:
     }
 
     with get_db() as session:
+        allowlist = get_store_allowlist()
         stores = session.query(Store).filter_by(active=True).all()
+        if allowlist:
+            stores = [store for store in stores if store.slug in allowlist]
         stats["stores"] = len(stores)
         rate_limiter = RateLimiter()
 
