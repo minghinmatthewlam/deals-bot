@@ -15,15 +15,18 @@ This directory contains configuration files for automated daily execution.
    ```bash
    # Copy template
    cp scheduling/com.dealintel.daily.plist ~/Library/LaunchAgents/
+   cp scheduling/com.dealintel.confirmations.plist ~/Library/LaunchAgents/
 
    # Edit with your actual path
    # Replace all instances of /path/to/deal-intel with your actual path
    nano ~/Library/LaunchAgents/com.dealintel.daily.plist
+   nano ~/Library/LaunchAgents/com.dealintel.confirmations.plist
    ```
 
 3. **Load the job:**
    ```bash
    launchctl load ~/Library/LaunchAgents/com.dealintel.daily.plist
+   launchctl load ~/Library/LaunchAgents/com.dealintel.confirmations.plist
    ```
 
 4. **Verify it's loaded:**
@@ -36,15 +39,18 @@ This directory contains configuration files for automated daily execution.
 ```bash
 # Trigger immediately for testing
 launchctl start com.dealintel.daily
+launchctl start com.dealintel.confirmations
 
 # Check logs
 tail -f /path/to/deal-intel/logs/launchd.log
+tail -f /path/to/deal-intel/logs/confirmations.log
 ```
 
 ### Unload
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.dealintel.daily.plist
+launchctl unload ~/Library/LaunchAgents/com.dealintel.confirmations.plist
 ```
 
 ### Troubleshooting
@@ -52,6 +58,7 @@ launchctl unload ~/Library/LaunchAgents/com.dealintel.daily.plist
 ```bash
 # Validate plist syntax
 plutil -lint ~/Library/LaunchAgents/com.dealintel.daily.plist
+plutil -lint ~/Library/LaunchAgents/com.dealintel.confirmations.plist
 
 # Check recent runs
 log show --predicate 'subsystem == "com.apple.xpc.launchd"' --last 1h | grep dealintel
@@ -59,6 +66,8 @@ log show --predicate 'subsystem == "com.apple.xpc.launchd"' --last 1h | grep dea
 # View logs
 cat /path/to/deal-intel/logs/launchd.log
 cat /path/to/deal-intel/logs/launchd.err
+cat /path/to/deal-intel/logs/confirmations.log
+cat /path/to/deal-intel/logs/confirmations.err
 ```
 
 ---
@@ -81,6 +90,8 @@ cat /path/to/deal-intel/logs/launchd.err
    ```cron
    # Deal Intelligence - Daily digest
    0 10 * * * cd /path/to/deal-intel && .venv/bin/dealintel run >> logs/cron.log 2>&1
+   # Deal Intelligence - Confirmation poller
+   0 9 * * * cd /path/to/deal-intel && .venv/bin/dealintel confirmations >> logs/confirmations.log 2>&1
    ```
 
 4. **Verify:**

@@ -106,6 +106,7 @@ make migrate       # Run database migrations
 make seed          # Load store configurations
 make run           # Run full pipeline
 make run-dry       # Run without sending emails
+make confirmations # Poll for newsletter confirmation emails
 make test          # Run test suite
 make lint          # Run linters
 make format        # Auto-format code

@@ -78,6 +78,20 @@ class GmailState(Base):
     )
 
 
+class InboxState(Base):
+    """Cursor tracking for specialized inbox pollers."""
+
+    __tablename__ = "inbox_state"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    cursor_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    last_history_id: Mapped[str | None] = mapped_column(String(100))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class EmailRaw(Base):
     """Raw ingested emails."""
 
@@ -118,6 +132,23 @@ class RawSignalBlob(Base):
     sha256: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     path: Mapped[str] = mapped_column(String(1000), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NewsletterConfirmation(Base):
+    """Confirmation emails captured for newsletter signups."""
+
+    __tablename__ = "newsletter_confirmations"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    gmail_message_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    gmail_thread_id: Mapped[str | None] = mapped_column(String(100))
+    store_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
+    from_address: Mapped[str] = mapped_column(String(500), nullable=False)
+    subject: Mapped[str] = mapped_column(String(1000), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confirmation_link: Mapped[str | None] = mapped_column(String(1000))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

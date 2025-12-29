@@ -169,6 +169,39 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
 
 
 @app.command()
+def confirmations(days: int = typer.Option(7, help="Days to look back if history cursor is missing")) -> None:
+    """Poll for newsletter confirmation emails."""
+    from dealintel.jobs.confirmations import run_confirmation_poll
+
+    console.print("[bold blue]Polling confirmation emails...[/bold blue]")
+
+    try:
+        stats = run_confirmation_poll(days=days)
+
+        if stats.get("error"):
+            console.print(f"[bold yellow]Warning:[/bold yellow] {stats['error']}")
+
+        table = Table(title="Confirmation Poll Results")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+
+        for key in ("scanned", "matched", "stored", "skipped_existing", "missing_link"):
+            if key in stats:
+                table.add_row(key.replace("_", " ").title(), str(stats[key]))
+
+        console.print(table)
+
+        if stats.get("success"):
+            console.print("[bold green]Confirmation poll completed successfully![/bold green]")
+        else:
+            console.print("[bold yellow]Confirmation poll completed with warnings.[/bold yellow]")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
 def status() -> None:
     """Show current status and recent runs."""
     from dealintel.db import get_db

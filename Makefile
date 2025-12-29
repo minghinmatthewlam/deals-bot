@@ -1,4 +1,4 @@
-.PHONY: install db-up db-down db-shell migrate seed gmail-auth run run-dry test lint typecheck clean
+.PHONY: install db-up db-down db-shell migrate seed gmail-auth run run-dry confirmations test lint typecheck clean
 
 # Python environment
 install:
@@ -43,6 +43,9 @@ run:
 
 run-dry:
 	.venv/bin/dealintel run --dry-run
+
+confirmations:
+	.venv/bin/dealintel confirmations
 
 # Development
 test:

@@ -1,0 +1,1 @@
+"""Newsletter subscription workflows."""
