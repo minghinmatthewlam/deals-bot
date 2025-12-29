@@ -203,10 +203,11 @@ def weekly(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview H
 
         ingest = stats.get("ingest") or {}
         if ingest:
-            table.add_row("Ingest", "Sources", str(ingest.get("sources", 0)))
-            table.add_row("", "Signals", str(ingest.get("signals", 0)))
-            table.add_row("", "New", str(ingest.get("new", 0)))
-            table.add_row("", "Errors", str(ingest.get("errors", 0)))
+            web_stats = ingest.get("web") if isinstance(ingest.get("web"), dict) else ingest
+            table.add_row("Ingest", "Sources", str(web_stats.get("sources", 0)))
+            table.add_row("", "Signals", str(web_stats.get("signals", 0)))
+            table.add_row("", "New", str(web_stats.get("new", 0)))
+            table.add_row("", "Errors", str(web_stats.get("errors", 0)))
 
         if stats.get("extract"):
             table.add_row("Extract", "Processed", str(stats["extract"].get("processed", 0)))

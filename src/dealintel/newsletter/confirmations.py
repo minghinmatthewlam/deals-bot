@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
+from google.auth.exceptions import RefreshError  # type: ignore[import-untyped]
 
 from dealintel.browser.runner import BrowserRunner
 from dealintel.db import get_db
@@ -75,19 +76,29 @@ def poll_confirmations(days: int = 7) -> dict[str, int | str]:
         "missing_link": 0,
     }
 
-    service = get_gmail_service()
+    try:
+        service = get_gmail_service()
+    except RefreshError as exc:
+        logger.warning("Gmail auth refresh failed", error=str(exc))
+        stats["error"] = "gmail_refresh_failed"
+        return stats
 
     with get_db() as session:
         state = _get_or_create_state(session)
 
-        if state.last_history_id:
-            try:
-                message_ids, new_history_id = fetch_via_history(service, state.last_history_id)
-            except Exception as exc:
-                logger.warning("History fetch failed, falling back to date scan", error=str(exc))
+        try:
+            if state.last_history_id:
+                try:
+                    message_ids, new_history_id = fetch_via_history(service, state.last_history_id)
+                except Exception as exc:
+                    logger.warning("History fetch failed, falling back to date scan", error=str(exc))
+                    message_ids, new_history_id = fetch_by_date(service, days=days)
+            else:
                 message_ids, new_history_id = fetch_by_date(service, days=days)
-        else:
-            message_ids, new_history_id = fetch_by_date(service, days=days)
+        except RefreshError as exc:
+            logger.warning("Gmail auth refresh failed during fetch", error=str(exc))
+            stats["error"] = "gmail_refresh_failed"
+            return stats
 
         stats["scanned"] = len(message_ids)
 

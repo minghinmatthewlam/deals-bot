@@ -79,7 +79,11 @@ def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
             stats["newsletter"] = agent.subscribe_all()
 
             logger.info("Polling confirmations...")
-            stats["confirmations"] = poll_confirmations(days=7)
+            try:
+                stats["confirmations"] = poll_confirmations(days=7)
+            except Exception as exc:
+                logger.warning("Confirmation poll failed", error=str(exc))
+                stats["confirmations"] = {"error": str(exc)}
 
             logger.info("Ingesting sources...")
             stats["ingest"] = ingest_all_sources()
