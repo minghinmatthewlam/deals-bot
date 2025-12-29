@@ -19,6 +19,8 @@ from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_s
 class BrowserConfig:
     url: str
     wait_selector: str | None
+    wait_until: str | None
+    timeout_ms: int | None
 
 
 class BrowserAdapter:
@@ -35,10 +37,17 @@ class BrowserAdapter:
         if not url:
             raise AdapterError("Missing browser url")
         wait_selector = config.get("wait_selector")
+        wait_until = config.get("wait_until")
+        timeout_ms = config.get("timeout_ms")
         self._store_id = store_id
         self._store_name = store_name
         self._store_category = store_category
-        self._config = BrowserConfig(url=url, wait_selector=wait_selector)
+        self._config = BrowserConfig(
+            url=url,
+            wait_selector=wait_selector,
+            wait_until=wait_until,
+            timeout_ms=timeout_ms,
+        )
         self._runner = BrowserRunner()
         self._rate_limiter = rate_limiter or RateLimiter()
         self._crawl_delay_seconds = crawl_delay_seconds
@@ -52,14 +61,24 @@ class BrowserAdapter:
         return "browser"
 
     def health_check(self) -> SourceStatus:
-        result = self._runner.fetch_page(self._config.url, wait_selector=self._config.wait_selector)
+        result = self._runner.fetch_page(
+            self._config.url,
+            wait_selector=self._config.wait_selector,
+            wait_until=self._config.wait_until,
+            timeout_ms=self._config.timeout_ms,
+        )
         if result.error:
             return SourceStatus(ok=False, message=result.error)
         return SourceStatus(ok=True, message="browser ok")
 
     def discover(self) -> list[RawSignal]:
         self._rate_limiter.wait(self._config.url, self._crawl_delay_seconds)
-        result = self._runner.fetch_page(self._config.url, wait_selector=self._config.wait_selector)
+        result = self._runner.fetch_page(
+            self._config.url,
+            wait_selector=self._config.wait_selector,
+            wait_until=self._config.wait_until,
+            timeout_ms=self._config.timeout_ms,
+        )
         if result.error or not result.html:
             raise AdapterError(result.error or "browser fetch failed")
 

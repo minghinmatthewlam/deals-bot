@@ -43,6 +43,8 @@ class BrowserRunner:
         self,
         url: str,
         wait_selector: str | None = None,
+        wait_until: str | None = None,
+        timeout_ms: int | None = None,
         *,
         capture_screenshot_on_success: bool = False,
     ) -> BrowserResult:
@@ -61,8 +63,8 @@ class BrowserRunner:
             try:
                 context.tracing.start(screenshots=True, snapshots=True, sources=True)
                 page = context.new_page()
-                page.set_default_timeout(self.timeout_ms)
-                page.goto(url, wait_until="networkidle")
+                page.set_default_timeout(timeout_ms or self.timeout_ms)
+                page.goto(url, wait_until=wait_until or "networkidle")
                 if wait_selector:
                     page.wait_for_selector(wait_selector)
                 html = page.content()

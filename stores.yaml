@@ -123,6 +123,36 @@ stores:
         pattern: bankless.com
         priority: 50
 
+  # DealNews (Clothing RSS)
+  - slug: dealnews-clothing
+    name: DealNews
+    website_url: https://www.dealnews.com
+    category: apparel
+    sources:
+      - type: rss
+        url: https://www.dealnews.com/?rss=1&sort=time
+        priority: 100
+
+  # Slickdeals Apparel RSS
+  - slug: slickdeals-apparel
+    name: Slickdeals Apparel
+    website_url: https://slickdeals.net
+    category: apparel
+    sources:
+      - type: rss
+        url: https://slickdeals.net/newsearch.php?mode=frontpage&searcharea=deals&searchin=first&rss=1&forumchoice%5B%5D=9
+        priority: 100
+
+  # The Flight Deal RSS
+  - slug: the-flight-deal
+    name: The Flight Deal
+    website_url: https://www.theflightdeal.com
+    category: travel
+    sources:
+      - type: rss
+        url: https://www.theflightdeal.com/feed/
+        priority: 100
+
   # Secret Flying
   - slug: secret-flying
     name: Secret Flying
@@ -144,6 +174,11 @@ stores:
         pattern: https://www.united.com/en/us/deals
         priority: 100
         active: false  # frequent timeouts / blocks
+      - type: browser
+        url: https://www.united.com/en/us/deals
+        priority: 100
+        wait_until: domcontentloaded
+        timeout_ms: 60000
 
   # Delta Air Lines
   - slug: delta
@@ -155,6 +190,11 @@ stores:
         pattern: https://www.delta.com/us/en/deals-and-offers
         priority: 100
         active: false  # blocked by WAF (HTTP 444)
+      - type: browser
+        url: https://www.delta.com/us/en/deals-and-offers
+        priority: 100
+        wait_until: domcontentloaded
+        timeout_ms: 60000
 
 # Add more stores as needed by following this pattern:
 # - slug: unique-identifier (lowercase, hyphens)
