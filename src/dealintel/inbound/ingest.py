@@ -11,6 +11,7 @@ from dealintel.gmail.ingest import match_store
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.inbound.parse_eml import parse_eml
 from dealintel.models import EmailRaw
+from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 
 logger = structlog.get_logger()
 
@@ -58,6 +59,8 @@ def ingest_inbound_eml_dir(eml_dir: str = DEFAULT_EML_DIR) -> dict[str, int | bo
 
                 body_text = parsed.body_text or ""
                 body_hash = compute_body_hash(body_text)
+                payload = prepare_payload(body_text)
+                ensure_blob_record(session, payload)
 
                 email = EmailRaw(
                     gmail_message_id=message_id,
@@ -68,8 +71,12 @@ def ingest_inbound_eml_dir(eml_dir: str = DEFAULT_EML_DIR) -> dict[str, int | bo
                     from_name=parsed.from_name,
                     subject=parsed.subject,
                     received_at=parsed.received_at or datetime.now(UTC),
-                    body_text=body_text,
+                    body_text=payload.body_text,
                     body_hash=body_hash,
+                    payload_ref=payload.payload_ref,
+                    payload_sha256=payload.payload_sha256,
+                    payload_size_bytes=payload.payload_size_bytes,
+                    payload_truncated=payload.payload_truncated,
                     top_links=parsed.top_links,
                     extraction_status="pending",
                 )

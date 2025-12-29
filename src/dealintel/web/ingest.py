@@ -15,6 +15,7 @@ from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.models import EmailRaw, StoreSource
+from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 from dealintel.web.fetch import USER_AGENT, fetch_url
 from dealintel.web.parse import html_to_text, parse_web_html
 from dealintel.web.parse_feed import FeedEntry, is_feed_content, parse_rss_feed
@@ -210,6 +211,8 @@ def ingest_web_sources() -> dict[str, int | bool]:
                         if existing:
                             stats["skipped"] += 1
                             continue
+                        payload = prepare_payload(body_text)
+                        ensure_blob_record(session, payload)
 
                         subject = f"[WEB] {store.name}: {entry.title or 'Feed Entry'}"
                         email = EmailRaw(
@@ -221,8 +224,12 @@ def ingest_web_sources() -> dict[str, int | bool]:
                             from_name="DealIntel Crawler",
                             subject=subject,
                             received_at=entry.published_at or datetime.now(UTC),
-                            body_text=body_text,
+                            body_text=payload.body_text,
                             body_hash=body_hash,
+                            payload_ref=payload.payload_ref,
+                            payload_sha256=payload.payload_sha256,
+                            payload_size_bytes=payload.payload_size_bytes,
+                            payload_truncated=payload.payload_truncated,
                             top_links=[entry.link] if entry.link else None,
                             extraction_status="pending",
                         )
@@ -262,6 +269,9 @@ Store: {store.name}
 
 {body_text}"""
 
+                    payload = prepare_payload(formatted_body)
+                    ensure_blob_record(session, payload)
+
                     email = EmailRaw(
                         gmail_message_id=message_id,
                         gmail_thread_id=None,
@@ -271,8 +281,12 @@ Store: {store.name}
                         from_name="DealIntel Crawler",
                         subject=subject,
                         received_at=datetime.now(UTC),
-                        body_text=formatted_body,
+                        body_text=payload.body_text,
                         body_hash=body_hash,
+                        payload_ref=payload.payload_ref,
+                        payload_sha256=payload.payload_sha256,
+                        payload_size_bytes=payload.payload_size_bytes,
+                        payload_truncated=payload.payload_truncated,
                         top_links=parsed.top_links,
                         extraction_status="pending",
                     )

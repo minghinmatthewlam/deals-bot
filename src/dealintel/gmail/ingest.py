@@ -13,6 +13,7 @@ from dealintel.db import get_db
 from dealintel.gmail.auth import get_credentials
 from dealintel.gmail.parse import compute_body_hash, parse_body, parse_from_address, parse_headers
 from dealintel.models import EmailRaw, GmailState, StoreSource
+from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 
 logger = structlog.get_logger()
 
@@ -159,7 +160,10 @@ def ingest_emails() -> dict[str, int]:
 
                 # Parse body
                 body_text, top_links = parse_body(msg)
-                body_hash = compute_body_hash(body_text or "")
+                body_text = body_text or ""
+                body_hash = compute_body_hash(body_text)
+                payload = prepare_payload(body_text)
+                ensure_blob_record(session, payload)
 
                 # Match to store
                 store_id = match_store(session, from_address, from_domain)
@@ -174,8 +178,12 @@ def ingest_emails() -> dict[str, int]:
                     from_name=from_name,
                     subject=headers.get("Subject", "(no subject)"),
                     received_at=datetime.fromtimestamp(int(msg["internalDate"]) / 1000, tz=UTC),
-                    body_text=body_text,
+                    body_text=payload.body_text,
                     body_hash=body_hash,
+                    payload_ref=payload.payload_ref,
+                    payload_sha256=payload.payload_sha256,
+                    payload_size_bytes=payload.payload_size_bytes,
+                    payload_truncated=payload.payload_truncated,
                     top_links=top_links,
                     extraction_status="pending",
                 )

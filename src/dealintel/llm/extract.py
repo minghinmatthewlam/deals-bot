@@ -9,6 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from dealintel.config import settings
 from dealintel.llm.schemas import ExtractionResult
 from dealintel.models import EmailRaw
+from dealintel.storage.payloads import get_email_body
 from dealintel.prefs import load_preferences
 
 logger = structlog.get_logger()
@@ -65,7 +66,7 @@ def format_email_for_extraction(email: EmailRaw) -> str:
     parts.append("")
 
     # Truncate body to ~3000 chars to stay within token budget
-    body = email.body_text or ""
+    body = get_email_body(email.body_text, email.payload_ref)
     if len(body) > 3000:
         body = body[:3000] + "\n\n[TRUNCATED]"
     parts.append(body)

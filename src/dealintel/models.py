@@ -94,6 +94,10 @@ class EmailRaw(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     body_text: Mapped[str | None] = mapped_column(Text)
     body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_ref: Mapped[str | None] = mapped_column(String(1000))
+    payload_sha256: Mapped[str | None] = mapped_column(String(64))
+    payload_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    payload_truncated: Mapped[bool] = mapped_column(Boolean, default=False)
     top_links: Mapped[list[str] | None] = mapped_column(JSONB)
     extraction_status: Mapped[str] = mapped_column(String(20), default="pending")
     extraction_error: Mapped[str | None] = mapped_column(Text)
@@ -103,6 +107,18 @@ class EmailRaw(Base):
     extraction: Mapped[PromoExtraction | None] = relationship(back_populates="email", uselist=False)
     promo_links: Mapped[list[PromoEmailLink]] = relationship(back_populates="email")
     promo_changes: Mapped[list[PromoChange]] = relationship(back_populates="email")
+
+
+class RawSignalBlob(Base):
+    """External storage for large raw payloads."""
+
+    __tablename__ = "raw_signal_blobs"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    sha256: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PromoExtraction(Base):
