@@ -14,6 +14,19 @@ stores:
       - type: gmail_from_domain
         pattern: nike.com
         priority: 50
+      - type: sitemap
+        url: https://www.nike.com/sitemap-v2-landingpage-index.xml
+        include: ["/w/sale", "sale-3yaep"]
+        max_urls: 5
+        priority: 100
+        active: false
+      - type: sitemap
+        url: https://www.nike.com/sitemap-v2-gridwall-index.xml
+        priority: 10
+        active: false
+      - type: category
+        url: https://www.nike.com/w/sale-3yaep
+        priority: 90
 
   # Example: REI
   - slug: rei
@@ -76,10 +89,10 @@ stores:
       - type: gmail_from_domain
         pattern: us.e.cos.com
         priority: 50
-      - type: web_url
-        pattern: https://www.cos.com/en_usd/sale.html
+      - type: category
+        url: https://www.cos.com/en_usd/sale.html
         priority: 100
-        active: false  # robots.txt disallows crawling
+        require_browser: true
 
   # Corridor NYC
   - slug: corridor
@@ -93,9 +106,14 @@ stores:
       - type: gmail_from_domain
         pattern: corridornyc.com
         priority: 50
-      - type: web_url
-        pattern: https://corridornyc.com/collections/sale
+      - type: sitemap
+        url: https://corridornyc.com/sitemap.xml
+        include: ["/collections/sale"]
+        max_urls: 5
         priority: 100
+      - type: category
+        url: https://corridornyc.com/collections/sale
+        priority: 90
 
   # Todd Snyder
   - slug: todd-snyder
