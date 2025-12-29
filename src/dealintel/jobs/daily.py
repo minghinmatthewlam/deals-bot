@@ -7,6 +7,7 @@ from typing import Any
 import pytz  # type: ignore[import-untyped]
 import structlog
 
+from dealintel.config import settings
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
 from dealintel.digest.render import generate_digest
 from dealintel.ingest.dedupe import dedupe_pending_emails
@@ -30,7 +31,13 @@ def process_pending_emails() -> dict[str, int]:
 
     with get_db() as session:
         stats["skipped_duplicates"] = dedupe_pending_emails(session)
-        pending = session.query(EmailRaw).filter_by(extraction_status="pending").all()
+        pending_query = (
+            session.query(EmailRaw)
+            .filter_by(extraction_status="pending")
+            .order_by(EmailRaw.received_at.desc())
+        )
+        limit = settings.extract_max_emails
+        pending = pending_query.limit(limit).all() if limit else pending_query.all()
         stats["processed"] = len(pending)
 
         for email in pending:

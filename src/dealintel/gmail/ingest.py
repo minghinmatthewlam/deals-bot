@@ -9,6 +9,7 @@ from googleapiclient.discovery import build  # type: ignore[import-untyped]
 from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
 from sqlalchemy.orm import Session
 
+from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.auth import get_credentials
 from dealintel.gmail.parse import compute_body_hash, parse_body, parse_from_address, parse_headers
@@ -131,15 +132,20 @@ def ingest_emails() -> dict[str, int]:
                 if e.resp.status == 404:
                     # History expired - fallback to full sync
                     logger.warning("History ID expired, doing full sync")
-                    message_ids, new_history_id = fetch_by_date(service, days=14)
+                    message_ids, new_history_id = fetch_by_date(service, days=settings.gmail_lookback_days)
                     state.last_full_sync_at = datetime.now(UTC)
                 else:
                     raise
         else:
             # First run - bootstrap
-            logger.info("First run, bootstrapping from last 14 days")
-            message_ids, new_history_id = fetch_by_date(service, days=14)
+            logger.info("First run, bootstrapping from lookback window", days=settings.gmail_lookback_days)
+            message_ids, new_history_id = fetch_by_date(service, days=settings.gmail_lookback_days)
             state.last_full_sync_at = datetime.now(UTC)
+
+        max_messages = settings.gmail_max_messages
+        if max_messages is not None and max_messages > 0 and len(message_ids) > max_messages:
+            logger.info("Limiting Gmail ingest", requested=max_messages, available=len(message_ids))
+            message_ids = message_ids[:max_messages]
 
         stats["fetched"] = len(message_ids)
 

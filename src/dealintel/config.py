@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     # Gmail OAuth
     gmail_credentials_path: str = "credentials.json"
     gmail_token_path: str = "token.json"
+    gmail_lookback_days: int = 14
+    gmail_max_messages: int | None = None
+
+    # Extraction limits
+    extract_max_emails: int | None = None
 
 
 settings = Settings()  # type: ignore[call-arg]
