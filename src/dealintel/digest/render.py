@@ -22,14 +22,18 @@ def group_by_store(promos: list[DigestItem]) -> dict[str, list[DigestItem]]:
     return dict(sorted(by_store.items()))
 
 
-def generate_digest(template_dir: str = "templates") -> tuple[str | None, int, int]:
+def generate_digest(
+    promos: list[DigestItem] | None = None,
+    template_dir: str = "templates",
+) -> tuple[str | None, int, int]:
     """Generate digest HTML from selected promos.
 
     Returns:
         tuple of (html_content, promo_count, store_count)
         Returns (None, 0, 0) if no promos to include.
     """
-    promos = select_digest_promos()
+    if promos is None:
+        promos = select_digest_promos()
 
     if not promos:
         logger.info("No promos to include in digest")

@@ -10,6 +10,7 @@ import structlog
 from dealintel.config import settings
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
 from dealintel.digest.render import generate_digest
+from dealintel.digest.select import mark_promos_notified, select_digest_promos
 from dealintel.ingest.dedupe import dedupe_pending_emails
 from dealintel.ingest.router import ingest_all_sources
 from dealintel.llm.extract import extract_promos
@@ -145,7 +146,8 @@ def run_daily_pipeline(dry_run: bool = False) -> dict[str, Any]:
 
             # 7. Generate digest
             logger.info("Generating digest...")
-            html, promo_count, store_count = generate_digest()
+            selected_promos = select_digest_promos(run_type="daily_digest", include_unchanged=False, cooldown_days=7)
+            html, promo_count, store_count = generate_digest(promos=selected_promos)
             stats["digest"] = {
                 "promo_count": promo_count,
                 "store_count": store_count,
@@ -166,6 +168,8 @@ def run_daily_pipeline(dry_run: bool = False) -> dict[str, Any]:
                         run.digest_provider_id = msg_id
                         stats["digest"]["sent"] = True
                         stats["digest"]["message_id"] = msg_id
+                        promo_ids = [item["promo"].id for item in selected_promos]
+                        stats["digest"]["notified"] = mark_promos_notified(promo_ids, run.digest_sent_at)
                     else:
                         stats["digest"]["sent"] = False
                         stats["error"] = "send_failed"
