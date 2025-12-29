@@ -189,13 +189,29 @@ def merge_extracted_promos() -> dict[str, int]:
                 if not result.is_promo_email:
                     continue
 
+                deduped: dict[str, PromoCandidate] = {}
+
+                def candidate_score(item: PromoCandidate) -> float:
+                    score = item.confidence or 0.0
+                    if item.discount_text:
+                        score += 1.0
+                    if item.percent_off is not None or item.amount_off is not None:
+                        score += 1.0
+                    if item.code:
+                        score += 0.5
+                    return score
+
                 for candidate in result.promos:
                     base_key = compute_base_key(
                         candidate.code,
                         candidate.landing_url,
                         candidate.headline,
                     )
+                    existing_candidate = deduped.get(base_key)
+                    if not existing_candidate or candidate_score(candidate) > candidate_score(existing_candidate):
+                        deduped[base_key] = candidate
 
+                for base_key, candidate in deduped.items():
                     existing = find_matching_promo(session, email.store_id, base_key)
 
                     if existing:
