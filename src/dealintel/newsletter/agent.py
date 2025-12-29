@@ -114,8 +114,10 @@ class NewsletterAgent:
             try:
                 context.tracing.start(screenshots=True, snapshots=True, sources=True)
                 page = context.new_page()
-                page.set_default_timeout(self.runner.timeout_ms)
-                page.goto(signup_url, wait_until="networkidle")
+                timeout_ms = config.get("timeout_ms") or self.runner.timeout_ms
+                wait_until = config.get("wait_until") or "networkidle"
+                page.set_default_timeout(timeout_ms)
+                page.goto(signup_url, wait_until=wait_until)
 
                 if self._detect_captcha(page):
                     screenshot = page.screenshot(full_page=True)
