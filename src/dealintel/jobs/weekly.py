@@ -24,6 +24,18 @@ from dealintel.seed import seed_stores
 logger = structlog.get_logger()
 
 
+def _next_archive_path(base_dir: Path, stem: str, suffix: str = ".html") -> Path:
+    path = base_dir / f"{stem}{suffix}"
+    if not path.exists():
+        return path
+    counter = 2
+    while True:
+        candidate = base_dir / f"{stem}-{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
 def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
     """Weekly pipeline with newsletter subscriptions + tiered web ingestion."""
     et = pytz.timezone("America/New_York")
@@ -119,6 +131,12 @@ def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
             ]
 
             if html:
+                archive_dir = Path("digest_archive") / "weekly"
+                archive_dir.mkdir(parents=True, exist_ok=True)
+                archive_path = _next_archive_path(archive_dir, today_et)
+                archive_path.write_text(html)
+                stats["digest"]["archive_path"] = str(archive_path)
+
                 if dry_run:
                     preview_path = Path("digest_preview.html")
                     preview_path.write_text(html)
