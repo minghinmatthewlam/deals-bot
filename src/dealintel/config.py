@@ -41,6 +41,24 @@ class Settings(BaseSettings):
     payload_max_inline_bytes: int = 200_000
     payload_blob_dir: str = "~/.deals-bot/payloads"
 
+    # Browser automation (Playwright)
+    browser_user_data_dir: str = "~/.deals-bot/browser-profile"
+    browser_headless: bool = False
+    browser_timeout_ms: int = 30_000
+    browser_args: list[str] = [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-infobars",
+    ]
+    browser_artifacts_dir: str = "~/.deals-bot/browser-artifacts"
+    browser_trace_dir: str = "~/.deals-bot/browser-traces"
+
+    # Human assist queue
+    human_assist_dir: str = "~/.deals-bot/human-assist"
+    human_assist_retention_days: int = 14
+
+    # Newsletter automation
+    newsletter_service_email: str | None = None
+
     # Gmail OAuth
     gmail_credentials_path: str = "credentials.json"
     gmail_token_path: str = "token.json"

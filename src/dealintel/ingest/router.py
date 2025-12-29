@@ -32,9 +32,9 @@ def ingest_all_sources() -> dict[str, SourceStats]:
     # Web crawlers (default)
     if settings.ingest_web:
         logger.info("Ingesting from web sources...")
-        from dealintel.web.ingest import ingest_web_sources
+        from dealintel.web.tiered import ingest_tiered_sources
 
-        stats["web"] = {"enabled": True, **ingest_web_sources()}
+        stats["web"] = {"enabled": True, **ingest_tiered_sources()}
     else:
         logger.info("Web ingestion disabled")
         stats["web"] = {"enabled": False}
