@@ -25,6 +25,7 @@ def group_by_store(promos: list[DigestItem]) -> dict[str, list[DigestItem]]:
 def generate_digest(
     promos: list[DigestItem] | None = None,
     template_dir: str = "templates",
+    report: dict | None = None,
 ) -> tuple[str | None, int, int]:
     """Generate digest HTML from selected promos.
 
@@ -56,6 +57,7 @@ def generate_digest(
         stores=by_store,
         promo_count=len(promos),
         store_count=len(by_store),
+        report=report or {},
     )
 
     logger.info(

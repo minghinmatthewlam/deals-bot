@@ -17,6 +17,82 @@
 
     <!-- Main Content -->
     <div style="background: white; padding: 24px; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        {% if report %}
+        <!-- Run Performance -->
+        <div style="margin-bottom: 28px; background: #f8fafc; border-radius: 10px; padding: 16px; border: 1px solid #e2e8f0;">
+            <h2 style="margin: 0 0 12px 0; font-size: 18px; color: #0f172a;">Run Performance</h2>
+            <p style="margin: 0 0 8px 0; color: #334155; font-size: 13px;">
+                Generated at: {{ report.generated_at }}
+            </p>
+            <div style="font-size: 13px; color: #334155; line-height: 1.6;">
+                <div><strong>Ingest:</strong>
+                    Gmail fetched {{ report.ingest.gmail.fetched if report.ingest and report.ingest.gmail else 0 }},
+                    Web signals {{ report.ingest.web.signals if report.ingest and report.ingest.web else 0 }},
+                    New {{ report.ingest.web.new if report.ingest and report.ingest.web else 0 }},
+                    Errors {{ report.ingest.web.errors if report.ingest and report.ingest.web else 0 }}
+                </div>
+                <div><strong>Extract:</strong>
+                    Processed {{ report.extract.processed if report.extract else 0 }},
+                    Succeeded {{ report.extract.succeeded if report.extract else 0 }},
+                    Failed {{ report.extract.failed if report.extract else 0 }}
+                </div>
+                <div><strong>Merge:</strong>
+                    Created {{ report.merge.created if report.merge else 0 }},
+                    Updated {{ report.merge.updated if report.merge else 0 }}
+                </div>
+            </div>
+
+            {% if report.web_failures %}
+            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #7f1d1d;">Errors / Non-success Attempts</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Store</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Method</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Status</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in report.web_failures %}
+                    <tr>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.store }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.source_type }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.status }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.message or attempt.error_code }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if report.web_attempts %}
+            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #0f172a;">All Source Attempts</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Store</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Method</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Status</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Signals</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Requests</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in report.web_attempts %}
+                    <tr>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.store }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.source_type }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.status }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.signals }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ attempt.http_requests }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endif %}
         {% for store_name, promos in stores.items() %}
         <!-- Store Section -->
         <div style="margin-bottom: 32px;">
@@ -43,6 +119,10 @@
                     {{ item.promo.discount_text }}
                 </p>
                 {% endif %}
+
+                <p style="color: #64748b; font-size: 12px; margin: 6px 0;">
+                    Found via: <strong>{{ item.source_type }}</strong>
+                </p>
 
                 <!-- Code -->
                 {% if item.promo.code %}
