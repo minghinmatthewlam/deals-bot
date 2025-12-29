@@ -45,6 +45,7 @@ def detect_and_record_changes(
     existing: Promo,
     candidate: PromoCandidate,
     email_id: UUID,
+    change_cache: set[tuple[UUID, UUID, str]],
 ) -> list[str]:
     """Detect changes and record for digest badges.
 
@@ -120,8 +121,17 @@ def detect_and_record_changes(
         )
         existing.code = candidate.code
 
-    # Record changes
+    # Record changes, collapsing multiple entries per change_type.
+    change_groups: dict[str, list[dict]] = {}
     for change_type, diff_json in changes:
+        change_groups.setdefault(change_type, []).append(diff_json)
+
+    for change_type, diffs in change_groups.items():
+        diff_payload: dict
+        if len(diffs) == 1:
+            diff_payload = diffs[0]
+        else:
+            diff_payload = {"changes": diffs}
         # Check if this exact change already exists
         existing_change = (
             session.query(PromoChange)
@@ -133,16 +143,21 @@ def detect_and_record_changes(
             .first()
         )
 
+        cache_key = (existing.id, email_id, change_type)
+        if cache_key in change_cache:
+            continue
+
         if not existing_change:
             session.add(
                 PromoChange(
                     promo_id=existing.id,
                     email_id=email_id,
                     change_type=change_type,
-                    diff_json=diff_json,
+                    diff_json=diff_payload,
                     changed_at=datetime.now(UTC),
                 )
             )
+            change_cache.add(cache_key)
 
     return [c[0] for c in changes]
 
@@ -161,6 +176,7 @@ def merge_extracted_promos() -> dict[str, int]:
             session.query(PromoExtraction).join(EmailRaw).filter(EmailRaw.extraction_status == "success").all()
         )
         link_cache: set[tuple[UUID, UUID]] = set()
+        change_cache: set[tuple[UUID, UUID, str]] = set()
 
         for extraction in extractions:
             email = extraction.email
@@ -184,7 +200,7 @@ def merge_extracted_promos() -> dict[str, int]:
 
                     if existing:
                         # Update existing promo
-                        changes = detect_and_record_changes(session, existing, candidate, email.id)
+                        changes = detect_and_record_changes(session, existing, candidate, email.id, change_cache)
                         existing.last_seen_at = datetime.now(UTC)
 
                         if changes:
