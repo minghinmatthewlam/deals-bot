@@ -315,6 +315,36 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
 
         console.print(table)
 
+        digest_items = stats.get("digest", {}).get("items") or []
+        if digest_items:
+            items_table = Table(title="Deals Found")
+            items_table.add_column("Store", style="cyan")
+            items_table.add_column("Method", style="magenta")
+            items_table.add_column("Badge", style="green")
+            items_table.add_column("Headline", style="white")
+            for item in digest_items:
+                items_table.add_row(
+                    item.get("store", ""),
+                    item.get("source_type", ""),
+                    item.get("badge", ""),
+                    item.get("headline", ""),
+                )
+            console.print(items_table)
+
+        web_failures = stats.get("ingest", {}).get("web", {}).get("failures") or []
+        if web_failures:
+            fail_table = Table(title="Web Ingest Failures")
+            fail_table.add_column("Store", style="cyan")
+            fail_table.add_column("Method", style="magenta")
+            fail_table.add_column("Error", style="red")
+            for failure in web_failures:
+                fail_table.add_row(
+                    str(failure.get("store", "")),
+                    str(failure.get("source_type", "")),
+                    str(failure.get("error", "")),
+                )
+            console.print(fail_table)
+
         if stats.get("success"):
             console.print("[bold green]Pipeline completed successfully![/bold green]")
         else:
@@ -382,6 +412,36 @@ def weekly(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview H
                 table.add_row("", "Sent", "Yes")
 
         console.print(table)
+
+        digest_items = stats.get("digest", {}).get("items") or []
+        if digest_items:
+            items_table = Table(title="Deals Found")
+            items_table.add_column("Store", style="cyan")
+            items_table.add_column("Method", style="magenta")
+            items_table.add_column("Badge", style="green")
+            items_table.add_column("Headline", style="white")
+            for item in digest_items:
+                items_table.add_row(
+                    item.get("store", ""),
+                    item.get("source_type", ""),
+                    item.get("badge", ""),
+                    item.get("headline", ""),
+                )
+            console.print(items_table)
+
+        web_failures = stats.get("ingest", {}).get("web", {}).get("failures") or []
+        if web_failures:
+            fail_table = Table(title="Web Ingest Failures")
+            fail_table.add_column("Store", style="cyan")
+            fail_table.add_column("Method", style="magenta")
+            fail_table.add_column("Error", style="red")
+            for failure in web_failures:
+                fail_table.add_row(
+                    str(failure.get("store", "")),
+                    str(failure.get("source_type", "")),
+                    str(failure.get("error", "")),
+                )
+            console.print(fail_table)
 
         if stats.get("success"):
             console.print("[bold green]Weekly pipeline completed successfully![/bold green]")

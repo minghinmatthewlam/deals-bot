@@ -153,6 +153,15 @@ def run_daily_pipeline(dry_run: bool = False) -> dict[str, Any]:
                 "store_count": store_count,
                 "generated": html is not None,
             }
+            stats["digest"]["items"] = [
+                {
+                    "store": item["store_name"],
+                    "badge": item["badge"],
+                    "headline": item["promo"].headline,
+                    "source_type": item["source_type"],
+                }
+                for item in selected_promos
+            ]
 
             # 8. Send or save
             if html:

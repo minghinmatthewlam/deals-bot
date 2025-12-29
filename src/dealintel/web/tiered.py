@@ -38,6 +38,7 @@ def ingest_tiered_sources() -> dict[str, int | bool]:
         "skipped": 0,
         "errors": 0,
     }
+    stats["failures"] = []
 
     with get_db() as session:
         allowlist = get_store_allowlist()
@@ -66,6 +67,13 @@ def ingest_tiered_sources() -> dict[str, int | bool]:
                     try:
                         signals = adapter.discover()
                         if not signals:
+                            stats["failures"].append(
+                                {
+                                    "store": store.slug,
+                                    "source_type": cfg.source_type,
+                                    "error": "no signals returned",
+                                }
+                            )
                             _mark_failure(cfg, session)
                             continue
 
@@ -81,10 +89,24 @@ def ingest_tiered_sources() -> dict[str, int | bool]:
                     except AdapterError as exc:
                         logger.warning("Adapter failed", store=store.slug, source=cfg.source_type, error=str(exc))
                         stats["errors"] += 1
+                        stats["failures"].append(
+                            {
+                                "store": store.slug,
+                                "source_type": cfg.source_type,
+                                "error": str(exc),
+                            }
+                        )
                         _mark_failure(cfg, session)
                     except Exception as exc:
                         logger.exception("Adapter exception", store=store.slug, source=cfg.source_type)
                         stats["errors"] += 1
+                        stats["failures"].append(
+                            {
+                                "store": store.slug,
+                                "source_type": cfg.source_type,
+                                "error": str(exc),
+                            }
+                        )
                         _mark_failure(cfg, session)
                 if success:
                     break
