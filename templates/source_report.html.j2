@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Validation Report</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 24px; background-color: #f8fafc; color: #0f172a;">
+    <div style="background: #111827; color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px;">
+        <h1 style="margin: 0 0 6px 0; font-size: 24px;">Source Validation Report</h1>
+        <p style="margin: 0; font-size: 14px; opacity: 0.85;">Generated: {{ generated_at }}</p>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.8;">
+            Robots override: <strong>{{ "ON (ignore robots.txt)" if ignore_robots else "OFF (respect robots.txt)" }}</strong>
+            {% if store_filter %} · Store filter: <strong>{{ store_filter }}</strong>{% endif %}
+        </p>
+    </div>
+
+    <div style="background: white; border-radius: 12px; padding: 18px 22px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(15,23,42,0.06);">
+        <h2 style="margin: 0 0 12px 0; font-size: 18px;">Summary</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+            <div style="background: #f1f5f9; padding: 8px 12px; border-radius: 8px;">Total attempts: <strong>{{ summary.total }}</strong></div>
+            <div style="background: #ecfdf3; padding: 8px 12px; border-radius: 8px;">Success: <strong>{{ summary.success }}</strong></div>
+            <div style="background: #fef9c3; padding: 8px 12px; border-radius: 8px;">Empty: <strong>{{ summary.empty }}</strong></div>
+            <div style="background: #fee2e2; padding: 8px 12px; border-radius: 8px;">Failure: <strong>{{ summary.failure }}</strong></div>
+            <div style="background: #ffe4e6; padding: 8px 12px; border-radius: 8px;">Error: <strong>{{ summary.error }}</strong></div>
+        </div>
+    </div>
+
+    {% if not stores %}
+    <p style="text-align: center; color: #475569;">No sources found.</p>
+    {% endif %}
+
+    {% for store in stores %}
+    <div style="background: white; border-radius: 12px; padding: 18px 22px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(15,23,42,0.06);">
+        <h2 style="margin: 0 0 12px 0; font-size: 18px;">{{ store.name }} <span style="color:#64748b; font-size: 13px;">({{ store.slug }})</span></h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Method</th>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Tier</th>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Status</th>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Signals</th>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Requests</th>
+                    <th style="text-align:left; padding: 8px; border-bottom: 1px solid #e2e8f0;">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for attempt in store.attempts %}
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">{{ attempt.source_type }}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">{{ attempt.tier }}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">{{ attempt.status }}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">{{ attempt.signals }}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">{{ attempt.http_requests }}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">
+                        <div style="margin-bottom: 6px; color: #334155;">
+                            {{ attempt.message or attempt.error_code or "" }}
+                        </div>
+                        {% if attempt.config_key %}
+                        <div style="margin-bottom: 6px; color: #64748b; font-size: 11px;">
+                            Config: {{ attempt.config_key }}
+                        </div>
+                        {% endif %}
+                        {% if attempt.sample_urls %}
+                        <ul style="margin: 0; padding-left: 16px; color: #2563eb;">
+                            {% for url in attempt.sample_urls %}
+                            <li><a href="{{ url }}" style="color: #2563eb; text-decoration: none;">{{ url }}</a></li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</body>
+</html>

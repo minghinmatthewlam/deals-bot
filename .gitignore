@@ -39,6 +39,7 @@ htmlcov/
 # Digest previews (generated in dry-run mode)
 digest_preview.html
 digest_archive/
+source_report.html
 
 # Inbound .eml directory (local only)
 inbound_eml/

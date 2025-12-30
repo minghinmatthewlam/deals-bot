@@ -70,12 +70,18 @@ Optional variables:
 
 | Variable | Description |
 |----------|-------------|
+| `INGEST_GMAIL` | Enable Gmail ingestion (`true`/`false`) |
+| `INGEST_WEB` | Enable web ingestion (`true`/`false`) |
+| `INGEST_INBOUND` | Enable inbound .eml ingestion (`true`/`false`) |
+| `INGEST_IGNORE_ROBOTS` | Ignore robots.txt for web sources (`true`/`false`) |
 | `NEWSLETTER_SERVICE_EMAIL` | Service inbox address to use for newsletter signups |
 | `BROWSER_HEADLESS` | Run Playwright headless (`true`/`false`) |
 | `HUMAN_ASSIST_DIR` | Directory for human-assist tasks |
 | `GMAIL_LOOKBACK_DAYS` | Days of Gmail history to scan on initial/expired sync |
 | `GMAIL_MAX_MESSAGES` | Max Gmail messages to ingest per run (testing throttle) |
 | `EXTRACT_MAX_EMAILS` | Max pending emails to extract per run (testing throttle) |
+| `WEB_DEFAULT_CRAWL_DELAY_SECONDS` | Default crawl delay between requests |
+| `WEB_DEFAULT_MAX_REQUESTS_PER_RUN` | Max web requests per run |
 
 ### 2. Configure Stores
 
@@ -115,6 +121,7 @@ CLI helpers:
 .venv/bin/python -m dealintel.cli stores list
 .venv/bin/python -m dealintel.cli stores search nike
 .venv/bin/python -m dealintel.cli stores allowlist --set cos corridor nike
+.venv/bin/python -m dealintel.cli sources report --store nike
 ```
 
 ### 2.5 Browser Automation (Playwright)
