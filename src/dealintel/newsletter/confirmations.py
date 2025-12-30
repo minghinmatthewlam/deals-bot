@@ -8,6 +8,7 @@ from pathlib import Path
 
 import structlog
 from google.auth.exceptions import RefreshError  # type: ignore[import-untyped]
+from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
 
 from dealintel.browser.runner import BrowserRunner
 from dealintel.db import get_db
@@ -74,6 +75,7 @@ def poll_confirmations(days: int = 7) -> dict[str, int | str]:
         "stored": 0,
         "skipped_existing": 0,
         "missing_link": 0,
+        "missing_message": 0,
     }
 
     try:
@@ -107,7 +109,13 @@ def poll_confirmations(days: int = 7) -> dict[str, int | str]:
                 stats["skipped_existing"] += 1
                 continue
 
-            msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+            try:
+                msg = service.users().messages().get(userId="me", id=msg_id, format="full").execute()
+            except HttpError as exc:
+                if exc.resp.status == 404:
+                    stats["missing_message"] += 1
+                    continue
+                raise
             headers = parse_headers(msg)
             subject = headers.get("Subject", "")
 
