@@ -9,6 +9,10 @@ Deal Intelligence monitors your Gmail inbox for promotional emails from configur
 ## Quick Start
 
 ```bash
+# One-command setup (installs, starts DB, migrates, seeds, writes .env if missing)
+make setup
+
+# Or step-by-step:
 # 1. Install dependencies
 make install
 
