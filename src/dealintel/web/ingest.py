@@ -13,7 +13,7 @@ from dealintel.config import settings
 from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.ingest.keys import signal_message_id
-from dealintel.models import EmailRaw, StoreSource
+from dealintel.models import EmailRaw, RawSignalRecord, StoreSource
 from dealintel.prefs import get_store_allowlist
 from dealintel.promos.normalize import normalize_url
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
@@ -192,6 +192,34 @@ def ingest_web_sources() -> dict[str, int | bool]:
                             continue
                         payload = prepare_payload(body_text)
                         ensure_blob_record(session, payload)
+                        existing_signal = (
+                            session.query(RawSignalRecord)
+                            .filter_by(
+                                store_id=source.store_id,
+                                signal_key=signal_key,
+                                payload_sha256=payload.payload_sha256,
+                            )
+                            .first()
+                        )
+                        if existing_signal:
+                            stats["skipped"] += 1
+                            continue
+
+                        session.add(
+                            RawSignalRecord(
+                                store_id=source.store_id,
+                                source_type="rss",
+                                signal_key=signal_key,
+                                url=canonical_url,
+                                observed_at=entry.published_at or datetime.now(UTC),
+                                payload_type="text",
+                                payload_ref=payload.payload_ref,
+                                payload_sha256=payload.payload_sha256,
+                                payload_size_bytes=payload.payload_size_bytes,
+                                payload_truncated=payload.payload_truncated,
+                                metadata={"title": entry.title, "top_links": [entry.link] if entry.link else None},
+                            )
+                        )
 
                         subject = f"[WEB] {store.name}: {entry.title or 'Feed Entry'}"
                         top_links = [entry.link] if entry.link else []
@@ -257,6 +285,39 @@ Store: {store.name}
 
                     payload = prepare_payload(formatted_body)
                     ensure_blob_record(session, payload)
+
+                    existing_signal = (
+                        session.query(RawSignalRecord)
+                        .filter_by(
+                            store_id=source.store_id,
+                            signal_key=signal_key,
+                            payload_sha256=payload.payload_sha256,
+                        )
+                        .first()
+                    )
+                    if existing_signal:
+                        stats["skipped"] += 1
+                        continue
+
+                    session.add(
+                        RawSignalRecord(
+                            store_id=source.store_id,
+                            source_type="web_url",
+                            signal_key=signal_key,
+                            url=canonical_url,
+                            observed_at=datetime.now(UTC),
+                            payload_type="text",
+                            payload_ref=payload.payload_ref,
+                            payload_sha256=payload.payload_sha256,
+                            payload_size_bytes=payload.payload_size_bytes,
+                            payload_truncated=payload.payload_truncated,
+                            metadata={
+                                "title": parsed.title,
+                                "canonical_url": canonical_url,
+                                "top_links": parsed.top_links,
+                            },
+                        )
+                    )
 
                     top_links = parsed.top_links or []
                     if canonical_url:
