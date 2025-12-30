@@ -20,6 +20,7 @@ from dealintel.newsletter.agent import NewsletterAgent
 from dealintel.newsletter.confirmations import poll_confirmations
 from dealintel.outbound.sendgrid_client import send_digest_email
 from dealintel.promos.merge import merge_extracted_promos
+from dealintel.reports.source_report import render_source_report
 from dealintel.seed import seed_stores
 
 logger = structlog.get_logger()
@@ -51,6 +52,7 @@ def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
         "extract": {},
         "merge": {},
         "digest": {},
+        "reports": {},
         "success": False,
     }
 
@@ -102,6 +104,19 @@ def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
             logger.info("Ingesting sources...")
             stats["ingest"] = ingest_all_sources()
             logger.info("Ingest complete", **stats["ingest"])
+
+            attempts = (stats.get("ingest") or {}).get("web", {}).get("attempts") or []
+            if attempts:
+                report_path = Path("source_report.html")
+                render_source_report(attempts=attempts, output_path=report_path, store_filter=None)
+                report_archive_dir = Path("report_archive") / "weekly"
+                report_archive_dir.mkdir(parents=True, exist_ok=True)
+                report_archive_path = _next_archive_path(report_archive_dir, today_et)
+                report_archive_path.write_text(report_path.read_text())
+                stats["reports"]["source_report"] = {
+                    "path": str(report_path),
+                    "archive_path": str(report_archive_path),
+                }
 
             logger.info("Extracting promos...")
             stats["extract"] = process_pending_emails()

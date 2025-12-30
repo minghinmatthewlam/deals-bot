@@ -58,54 +58,6 @@ def _parse_store_selection(selection: str, stores: list[dict]) -> list[str]:
     return slugs
 
 
-def _summarize_attempts(attempts: list[dict]) -> dict:
-    summary = {"total": 0, "success": 0, "empty": 0, "failure": 0, "error": 0}
-    summary["total"] = len(attempts)
-    for attempt in attempts:
-        status = attempt.get("status")
-        if status in summary:
-            summary[status] += 1
-        else:
-            summary["error"] += 1
-    return summary
-
-
-def _group_attempts_by_store(attempts: list[dict]) -> list[dict]:
-    grouped: dict[str, dict] = {}
-    for attempt in attempts:
-        slug = attempt.get("store")
-        if not slug:
-            continue
-        entry = grouped.setdefault(
-            slug,
-            {"slug": slug, "name": attempt.get("store_name") or slug, "attempts": []},
-        )
-        entry["attempts"].append(attempt)
-    return sorted(grouped.values(), key=lambda item: item["name"].lower())
-
-
-def _render_source_report(
-    *,
-    attempts: list[dict],
-    output_path: Path,
-    store_filter: str | None,
-) -> None:
-    from datetime import datetime
-    from jinja2 import Environment, FileSystemLoader
-    from dealintel.config import settings
-
-    env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
-    template = env.get_template("source_report.html.j2")
-    html = template.render(
-        generated_at=datetime.now().isoformat(timespec="seconds"),
-        ignore_robots=settings.ingest_ignore_robots,
-        store_filter=store_filter,
-        summary=_summarize_attempts(attempts),
-        stores=_group_attempts_by_store(attempts),
-    )
-    output_path.write_text(html)
-
-
 @app.command()
 def seed(stores_path: str = typer.Option("stores.yaml", help="Path to stores YAML file")) -> None:
     """Seed stores from stores.yaml."""
@@ -337,6 +289,7 @@ def report_sources(
     from dealintel.db import get_db
     from dealintel.models import SourceConfig, Store
     from dealintel.prefs import get_store_allowlist
+    from dealintel.reports.source_report import render_source_report
     from dealintel.web.rate_limit import RateLimiter
     from dealintel.web.tiered import build_adapter
 
@@ -400,7 +353,7 @@ def report_sources(
                 )
 
     output_path = Path(output)
-    _render_source_report(attempts=attempts, output_path=output_path, store_filter=store)
+    render_source_report(attempts=attempts, output_path=output_path, store_filter=store)
     console.print(f"[green]Report saved:[/green] {output_path}")
 
 
