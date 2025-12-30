@@ -286,6 +286,12 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
         subject = f"[{signal.source_type.upper()}] {store.name}: {signal.metadata.get('title') or 'Signal'}"
         received_at = signal.observed_at or datetime.now(UTC)
 
+        top_links = signal.metadata.get("top_links") or []
+        if signal.url:
+            if signal.url in top_links:
+                top_links.remove(signal.url)
+            top_links = [signal.url, *top_links]
+
         email = EmailRaw(
             gmail_message_id=message_id,
             gmail_thread_id=None,
@@ -302,7 +308,7 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
             payload_sha256=payload.payload_sha256,
             payload_size_bytes=payload.payload_size_bytes,
             payload_truncated=payload.payload_truncated,
-            top_links=signal.metadata.get("top_links"),
+            top_links=top_links or None,
             extraction_status="pending",
         )
         session.add(email)

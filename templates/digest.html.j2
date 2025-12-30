@@ -122,6 +122,10 @@
 
                 <p style="color: #64748b; font-size: 12px; margin: 6px 0;">
                     Found via: <strong>{{ item.source_type }}</strong>
+                    {% if item.source_url %}
+                    &nbsp;·&nbsp; Source URL:
+                    <a href="{{ item.source_url }}" style="color: #2563eb; text-decoration: none;">{{ item.source_url }}</a>
+                    {% endif %}
                 </p>
 
                 <!-- Code -->

@@ -194,6 +194,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                         ensure_blob_record(session, payload)
 
                         subject = f"[WEB] {store.name}: {entry.title or 'Feed Entry'}"
+                        top_links = [entry.link] if entry.link else []
                         email = EmailRaw(
                             gmail_message_id=message_id,
                             gmail_thread_id=None,
@@ -210,7 +211,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                             payload_sha256=payload.payload_sha256,
                             payload_size_bytes=payload.payload_size_bytes,
                             payload_truncated=payload.payload_truncated,
-                            top_links=[entry.link] if entry.link else None,
+                            top_links=top_links or None,
                             extraction_status="pending",
                         )
                         session.add(email)
@@ -257,6 +258,12 @@ Store: {store.name}
                     payload = prepare_payload(formatted_body)
                     ensure_blob_record(session, payload)
 
+                    top_links = parsed.top_links or []
+                    if canonical_url:
+                        if canonical_url in top_links:
+                            top_links.remove(canonical_url)
+                        top_links = [canonical_url, *top_links]
+
                     email = EmailRaw(
                         gmail_message_id=message_id,
                         gmail_thread_id=None,
@@ -273,7 +280,7 @@ Store: {store.name}
                         payload_sha256=payload.payload_sha256,
                         payload_size_bytes=payload.payload_size_bytes,
                         payload_truncated=payload.payload_truncated,
-                        top_links=parsed.top_links,
+                        top_links=top_links or None,
                         extraction_status="pending",
                     )
                     session.add(email)

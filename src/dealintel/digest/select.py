@@ -18,6 +18,7 @@ class DigestItem(TypedDict):
     store_name: str
     changes: list[str]
     source_type: str
+    source_url: str | None
 
 
 logger = structlog.get_logger()
@@ -48,6 +49,24 @@ def _latest_source_type(promo: Promo) -> str:
     )
     message_id = latest_link.email.gmail_message_id if latest_link.email else None
     return _source_type_from_message_id(message_id)
+
+
+def _latest_email(promo: Promo) -> EmailRaw | None:
+    if not promo.email_links:
+        return None
+    latest_link = max(
+        promo.email_links,
+        key=lambda link: link.email.received_at if link.email else datetime.min.replace(tzinfo=UTC),
+    )
+    return latest_link.email
+
+
+def _source_url_from_email(email: EmailRaw | None) -> str | None:
+    if not email:
+        return None
+    if email.top_links:
+        return email.top_links[0]
+    return None
 
 
 def get_last_digest_time(session: Session, run_type: str = "daily_digest") -> datetime:
@@ -124,6 +143,7 @@ def select_digest_promos(
                         "store_name": change.promo.store.name,
                         "changes": ["created"],
                         "source_type": _source_type_from_message_id(change.email.gmail_message_id),
+                        "source_url": _source_url_from_email(change.email),
                     }
                 )
 
@@ -161,6 +181,7 @@ def select_digest_promos(
                         "store_name": change.promo.store.name,
                         "changes": all_changes,
                         "source_type": _source_type_from_message_id(change.email.gmail_message_id),
+                        "source_url": _source_url_from_email(change.email),
                     }
                 )
 
@@ -193,6 +214,7 @@ def select_digest_promos(
                         "store_name": promo.store.name,
                         "changes": [],
                         "source_type": _latest_source_type(promo),
+                        "source_url": _source_url_from_email(_latest_email(promo)),
                     }
                 )
 
