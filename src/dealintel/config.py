@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     ingest_gmail: bool = False
     ingest_web: bool = True
     ingest_inbound: bool = False
-    ingest_ignore_robots: bool = False
+    ingest_ignore_robots: bool = True
 
     # Web crawl defaults
     web_default_crawl_delay_seconds: float = 30.0

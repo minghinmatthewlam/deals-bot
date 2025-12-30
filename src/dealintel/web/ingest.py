@@ -64,7 +64,7 @@ def _is_allowed_by_robots(
     if ignore_robots is None:
         ignore_robots = settings.ingest_ignore_robots
     if ignore_robots:
-        logger.warning("Ignoring robots.txt for web fetch", url=url)
+        logger.debug("Ignoring robots.txt for web fetch", url=url)
         return True
     allowed, reason = check_robots_policy(url, robots_policy=robots_policy)
     if not allowed:

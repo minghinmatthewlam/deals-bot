@@ -9,6 +9,7 @@ from urllib.robotparser import RobotFileParser
 import structlog
 
 from dealintel.web.fetch import USER_AGENT
+from dealintel.config import settings
 
 logger = structlog.get_logger()
 
@@ -42,6 +43,8 @@ def check_robots_policy(
     url: str,
     robots_policy: str | None,
 ) -> tuple[bool, Literal["allowed", "ignored", "robots_disallowed", "robots_unreachable"]]:
+    if settings.ingest_ignore_robots:
+        return True, "ignored"
     if robots_policy and robots_policy.lower() == "ignore":
         return True, "ignored"
 

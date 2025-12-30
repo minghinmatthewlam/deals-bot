@@ -83,7 +83,8 @@ clean:
 
 # Full setup (first time)
 setup: install db-up migrate seed
-	@echo "Setup complete! Run 'make gmail-auth' to authenticate with Gmail."
+	@test -f .env || cp .env.example .env
+	@echo "Setup complete! Update .env and run 'make gmail-auth' to authenticate with Gmail."
 
 # Help
 help:
