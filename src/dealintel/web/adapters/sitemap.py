@@ -15,7 +15,7 @@ import structlog
 from dealintel.ingest.signals import RawSignal
 from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
 from dealintel.web.budget import RequestBudget
-from dealintel.web.fetch import fetch_url
+from dealintel.web.fetch import FetchResult, fetch_url
 from dealintel.web.policy import check_robots_policy
 from dealintel.web.rate_limit import RateLimiter
 from dealintel.web.parse import parse_web_html
@@ -43,6 +43,8 @@ class SitemapAdapter:
         crawl_delay_seconds: float | None = None,
         robots_policy: str | None = None,
         budget: RequestBudget | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
     ):
         include = config.get("include") or []
         exclude = config.get("exclude") or []
@@ -58,6 +60,8 @@ class SitemapAdapter:
         self._crawl_delay_seconds = crawl_delay_seconds
         self._robots_policy = robots_policy
         self._budget = budget
+        self._etag = etag
+        self._last_modified = last_modified
 
     @property
     def tier(self) -> SourceTier:
@@ -90,6 +94,18 @@ class SitemapAdapter:
             )
 
         urls_result = self._collect_urls(self._config.url)
+        if urls_result.get("not_modified"):
+            return SourceResult(
+                status=SourceResultStatus.EMPTY,
+                signals=[],
+                message="not modified",
+                error_code=None,
+                http_requests=urls_result["http_requests"],
+                bytes_read=urls_result["bytes_read"],
+                duration_ms=int((time.monotonic() - start) * 1000),
+                etag=urls_result.get("etag") or self._etag,
+                last_modified=urls_result.get("last_modified") or self._last_modified,
+            )
         if not urls_result["urls"]:
             return SourceResult(
                 status=SourceResultStatus.EMPTY,
@@ -179,6 +195,12 @@ class SitemapAdapter:
         else:
             status = SourceResultStatus.SUCCESS
 
+        last_seen_item_at = None
+        if filtered:
+            last_seen_item_at = max((lastmod for _url, lastmod in filtered if lastmod), default=None)
+        if last_seen_item_at is None and signals:
+            last_seen_item_at = max((signal.observed_at for signal in signals), default=None)
+
         return SourceResult(
             status=status,
             signals=signals,
@@ -190,18 +212,36 @@ class SitemapAdapter:
             bytes_read=bytes_read,
             duration_ms=int((time.monotonic() - start) * 1000),
             sample_urls=[signal.url for signal in signals[:3] if signal.url],
+            etag=urls_result.get("etag") or self._etag,
+            last_modified=urls_result.get("last_modified") or self._last_modified,
+            last_seen_item_at=last_seen_item_at,
         )
 
-    def _fetch_xml(self, url: str) -> str:
+    def _fetch_xml(
+        self,
+        url: str,
+        *,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> tuple[str | None, FetchResult]:
         self._rate_limiter.wait(url, self._crawl_delay_seconds)
-        result = fetch_url(url, max_content_length=20 * 1024 * 1024)
+        result = fetch_url(
+            url,
+            max_content_length=20 * 1024 * 1024,
+            etag=etag,
+            last_modified=last_modified,
+        )
+        if result.status_code == 304:
+            return None, result
         if result.error or not result.text:
             raise AdapterError(f"Failed to fetch sitemap: {result.error}")
-        return result.text
+        return result.text, result
 
     def _collect_urls(self, url: str) -> dict[str, Any]:
         http_requests = 0
         bytes_read = 0
+        etag = None
+        last_modified = None
         if self._budget and not self._budget.start_request():
             return {
                 "urls": [],
@@ -212,7 +252,11 @@ class SitemapAdapter:
             }
 
         try:
-            xml_text = self._fetch_xml(url)
+            xml_text, result = self._fetch_xml(
+                url,
+                etag=self._etag if url == self._config.url else None,
+                last_modified=self._last_modified if url == self._config.url else None,
+            )
         except Exception as exc:
             return {
                 "urls": [],
@@ -221,7 +265,22 @@ class SitemapAdapter:
                 "http_requests": http_requests + 1,
                 "bytes_read": bytes_read,
             }
+        if result:
+            etag = result.etag
+            last_modified = result.last_modified
         http_requests += 1
+        if xml_text is None and result and result.status_code == 304 and url == self._config.url:
+            return {
+                "urls": [],
+                "message": "not modified",
+                "error_code": None,
+                "http_requests": http_requests,
+                "bytes_read": bytes_read,
+                "not_modified": True,
+                "etag": etag,
+                "last_modified": last_modified,
+            }
+
         bytes_read += len(xml_text or "")
         if self._budget:
             self._budget.add_bytes(len(xml_text or ""))
@@ -245,6 +304,8 @@ class SitemapAdapter:
                 "error_code": None,
                 "http_requests": http_requests,
                 "bytes_read": bytes_read,
+                "etag": etag,
+                "last_modified": last_modified,
             }
 
         if "urlset" in tag:
@@ -267,6 +328,8 @@ class SitemapAdapter:
                 "error_code": None,
                 "http_requests": http_requests,
                 "bytes_read": bytes_read,
+                "etag": etag,
+                "last_modified": last_modified,
             }
 
         return {
@@ -275,4 +338,6 @@ class SitemapAdapter:
             "error_code": "parse_error",
             "http_requests": http_requests,
             "bytes_read": bytes_read,
+            "etag": etag,
+            "last_modified": last_modified,
         }

@@ -37,6 +37,8 @@ class BrowserAdapter:
         crawl_delay_seconds: float | None = None,
         robots_policy: str | None = None,
         budget: RequestBudget | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
     ):
         url = config.get("url")
         if not url:
@@ -58,6 +60,8 @@ class BrowserAdapter:
         self._crawl_delay_seconds = crawl_delay_seconds
         self._robots_policy = robots_policy
         self._budget = budget
+        self._etag = etag
+        self._last_modified = last_modified
 
     @property
     def tier(self) -> SourceTier:
@@ -161,4 +165,5 @@ class BrowserAdapter:
             bytes_read=bytes_read,
             duration_ms=int((time.monotonic() - start) * 1000),
             sample_urls=[canonical_url],
+            last_seen_item_at=datetime.now(UTC),
         )

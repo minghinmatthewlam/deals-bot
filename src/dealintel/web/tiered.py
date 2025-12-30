@@ -13,7 +13,7 @@ from dealintel.db import get_db
 from dealintel.gmail.parse import compute_body_hash
 from dealintel.ingest.keys import compute_signal_key, signal_message_id
 from dealintel.ingest.signals import RawSignal
-from dealintel.models import EmailRaw, SourceConfig, Store, StoreSource
+from dealintel.models import EmailRaw, RawSignalRecord, SourceConfig, Store, StoreSource
 from dealintel.prefs import get_store_allowlist
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
 from dealintel.web.adapters.base import AdapterError, SourceResultStatus, SourceTier
@@ -74,6 +74,7 @@ def ingest_tiered_sources() -> dict[str, int | bool | list]:
 
                         attempt = {
                             "store": store.slug,
+                            "store_name": store.name,
                             "tier": cfg.tier,
                             "source_type": cfg.source_type,
                             "config_key": cfg.config_key,
@@ -88,6 +89,8 @@ def ingest_tiered_sources() -> dict[str, int | bool | list]:
                             "signals_skipped": 0,
                             "sample_urls": result.sample_urls,
                         }
+
+                        _update_fetch_state(cfg, result, session)
 
                         if result.status == SourceResultStatus.SUCCESS and signals:
                             stats["signals"] += len(signals)
@@ -112,6 +115,7 @@ def ingest_tiered_sources() -> dict[str, int | bool | list]:
                         stats["attempts"].append(
                             {
                                 "store": store.slug,
+                                "store_name": store.name,
                                 "tier": cfg.tier,
                                 "source_type": cfg.source_type,
                                 "config_key": cfg.config_key,
@@ -134,6 +138,7 @@ def ingest_tiered_sources() -> dict[str, int | bool | list]:
                         stats["attempts"].append(
                             {
                                 "store": store.slug,
+                                "store_name": store.name,
                                 "tier": cfg.tier,
                                 "source_type": cfg.source_type,
                                 "config_key": cfg.config_key,
@@ -216,6 +221,8 @@ def build_adapter(
             crawl_delay,
             robots_policy,
             budget,
+            etag=cfg.etag,
+            last_modified=cfg.last_modified,
         )
     if source_type == "rss":
         return RssAdapter(
@@ -226,6 +233,8 @@ def build_adapter(
             crawl_delay,
             robots_policy,
             budget,
+            etag=cfg.etag,
+            last_modified=cfg.last_modified,
         )
     if source_type == "json":
         return JsonEndpointAdapter(
@@ -235,6 +244,8 @@ def build_adapter(
             crawl_delay,
             robots_policy,
             budget,
+            etag=cfg.etag,
+            last_modified=cfg.last_modified,
         )
     if source_type == "category":
         return CategoryPageAdapter(
@@ -246,6 +257,8 @@ def build_adapter(
             crawl_delay,
             robots_policy,
             budget,
+            etag=cfg.etag,
+            last_modified=cfg.last_modified,
         )
     if source_type == "browser":
         return BrowserAdapter(
@@ -257,6 +270,8 @@ def build_adapter(
             crawl_delay,
             robots_policy,
             budget,
+            etag=cfg.etag,
+            last_modified=cfg.last_modified,
         )
     return None
 
@@ -271,17 +286,22 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
         signal_key = compute_signal_key(signal)
         message_id = signal_message_id(f"{store.id}:{signal_key}", body_hash)
 
-        existing = (
+        payload = prepare_payload(body_text)
+        ensure_blob_record(session, payload)
+
+        existing_email = (
             session.query(EmailRaw)
             .filter_by(store_id=store.id, signal_key=signal_key, body_hash=body_hash)
             .first()
         )
-        if existing:
+        existing_signal = (
+            session.query(RawSignalRecord)
+            .filter_by(store_id=store.id, signal_key=signal_key, payload_sha256=payload.payload_sha256)
+            .first()
+        )
+        if existing_email or existing_signal:
             skipped_count += 1
             continue
-
-        payload = prepare_payload(body_text)
-        ensure_blob_record(session, payload)
 
         subject = f"[{signal.source_type.upper()}] {store.name}: {signal.metadata.get('title') or 'Signal'}"
         received_at = signal.observed_at or datetime.now(UTC)
@@ -291,6 +311,22 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
             if signal.url in top_links:
                 top_links.remove(signal.url)
             top_links = [signal.url, *top_links]
+
+        session.add(
+            RawSignalRecord(
+                store_id=store.id,
+                source_type=signal.source_type,
+                signal_key=signal_key,
+                url=signal.url,
+                observed_at=received_at,
+                payload_type=signal.payload_type,
+                payload_ref=payload.payload_ref,
+                payload_sha256=payload.payload_sha256,
+                payload_size_bytes=payload.payload_size_bytes,
+                payload_truncated=payload.payload_truncated,
+                metadata=signal.metadata or {},
+            )
+        )
 
         email = EmailRaw(
             gmail_message_id=message_id,
@@ -332,3 +368,17 @@ def _mark_failure(cfg: SourceConfig, session: Session) -> None:
     persisted = session.query(SourceConfig).filter_by(id=cfg.id).first()
     if persisted:
         persisted.failure_count = (persisted.failure_count or 0) + 1
+
+
+def _update_fetch_state(cfg: SourceConfig, result: Any, session: Session) -> None:
+    if cfg.id is None:
+        return
+    persisted = session.query(SourceConfig).filter_by(id=cfg.id).first()
+    if not persisted:
+        return
+    if result.etag:
+        persisted.etag = result.etag
+    if result.last_modified:
+        persisted.last_modified = result.last_modified
+    if result.last_seen_item_at:
+        persisted.last_seen_item_at = result.last_seen_item_at

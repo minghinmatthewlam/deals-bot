@@ -79,6 +79,9 @@ class SourceConfig(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_successful_run: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    etag: Mapped[str | None] = mapped_column(String(200))
+    last_modified: Mapped[str | None] = mapped_column(String(200))
+    last_seen_item_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -149,6 +152,31 @@ class EmailRaw(Base):
     extraction: Mapped[PromoExtraction | None] = relationship(back_populates="email", uselist=False)
     promo_links: Mapped[list[PromoEmailLink]] = relationship(back_populates="email")
     promo_changes: Mapped[list[PromoChange]] = relationship(back_populates="email")
+
+
+class RawSignalRecord(Base):
+    """Raw signals ingested from web/adapters."""
+
+    __tablename__ = "raw_signals"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    store_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"))
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    signal_key: Mapped[str] = mapped_column(String(1000), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(1000))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    payload_ref: Mapped[str | None] = mapped_column(String(1000))
+    payload_sha256: Mapped[str | None] = mapped_column(String(64))
+    payload_size_bytes: Mapped[int | None] = mapped_column(Integer)
+    payload_truncated: Mapped[bool | None] = mapped_column(Boolean)
+    metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("store_id", "signal_key", "payload_sha256"),
+        Index("ix_raw_signals_store_key_hash", "store_id", "signal_key", "payload_sha256"),
+    )
 
 
 class RawSignalBlob(Base):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Protocol
 
@@ -41,6 +42,9 @@ class SourceResult:
     bytes_read: int = 0
     duration_ms: int | None = None
     sample_urls: list[str] = field(default_factory=list)
+    etag: str | None = None
+    last_modified: str | None = None
+    last_seen_item_at: datetime | None = None
 
 
 class AdapterError(RuntimeError):

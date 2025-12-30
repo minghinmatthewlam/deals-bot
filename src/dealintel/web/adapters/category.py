@@ -39,6 +39,8 @@ class CategoryPageAdapter:
         crawl_delay_seconds: float | None = None,
         robots_policy: str | None = None,
         budget: RequestBudget | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
     ):
         url = config.get("url")
         if not url:
@@ -52,6 +54,8 @@ class CategoryPageAdapter:
         self._crawl_delay_seconds = crawl_delay_seconds
         self._robots_policy = robots_policy
         self._budget = budget
+        self._etag = etag
+        self._last_modified = last_modified
 
     @property
     def tier(self) -> SourceTier:
@@ -106,7 +110,7 @@ class CategoryPageAdapter:
         http_requests = 1
         bytes_read = 0
         try:
-            result = fetch_url(self._config.url)
+            result = fetch_url(self._config.url, etag=self._etag, last_modified=self._last_modified)
         except Exception as exc:
             return SourceResult(
                 status=SourceResultStatus.FAILURE,
@@ -116,6 +120,18 @@ class CategoryPageAdapter:
                 http_requests=http_requests,
                 duration_ms=int((time.monotonic() - start) * 1000),
             )
+        if result.status_code == 304:
+            return SourceResult(
+                status=SourceResultStatus.EMPTY,
+                signals=[],
+                message="not modified",
+                http_requests=http_requests,
+                bytes_read=0,
+                duration_ms=int((time.monotonic() - start) * 1000),
+                etag=result.etag or self._etag,
+                last_modified=result.last_modified or self._last_modified,
+            )
+
         if result.text:
             bytes_read = len(result.text)
             if self._budget:
@@ -169,4 +185,7 @@ class CategoryPageAdapter:
             bytes_read=bytes_read,
             duration_ms=int((time.monotonic() - start) * 1000),
             sample_urls=[canonical_url],
+            etag=result.etag or self._etag,
+            last_modified=result.last_modified or self._last_modified,
+            last_seen_item_at=datetime.now(UTC),
         )
