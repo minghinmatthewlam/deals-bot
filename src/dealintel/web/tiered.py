@@ -324,7 +324,7 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
                 payload_sha256=payload.payload_sha256,
                 payload_size_bytes=payload.payload_size_bytes,
                 payload_truncated=payload.payload_truncated,
-                metadata=signal.metadata or {},
+                metadata_json=signal.metadata or {},
             )
         )
 

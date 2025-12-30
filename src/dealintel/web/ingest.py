@@ -217,7 +217,7 @@ def ingest_web_sources() -> dict[str, int | bool]:
                                 payload_sha256=payload.payload_sha256,
                                 payload_size_bytes=payload.payload_size_bytes,
                                 payload_truncated=payload.payload_truncated,
-                                metadata={"title": entry.title, "top_links": [entry.link] if entry.link else None},
+                                metadata_json={"title": entry.title, "top_links": [entry.link] if entry.link else None},
                             )
                         )
 
@@ -311,7 +311,7 @@ Store: {store.name}
                             payload_sha256=payload.payload_sha256,
                             payload_size_bytes=payload.payload_size_bytes,
                             payload_truncated=payload.payload_truncated,
-                            metadata={
+                            metadata_json={
                                 "title": parsed.title,
                                 "canonical_url": canonical_url,
                                 "top_links": parsed.top_links,
