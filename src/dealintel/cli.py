@@ -1,10 +1,12 @@
 """CLI entry point using Typer."""
 
+import re
 import structlog
 import typer
+from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
-from pathlib import Path
 
 import yaml  # type: ignore[import-untyped]
 
@@ -17,6 +19,8 @@ stores_app = typer.Typer(help="Store discovery and allowlist helpers.")
 app.add_typer(stores_app, name="stores")
 sources_app = typer.Typer(help="Source validation helpers.")
 app.add_typer(sources_app, name="sources")
+notify_app = typer.Typer(help="Notification helpers.")
+app.add_typer(notify_app, name="notify")
 
 # Configure structured logging
 structlog.configure(
@@ -28,6 +32,28 @@ structlog.configure(
     context_class=dict,
     logger_factory=structlog.PrintLoggerFactory(),
 )
+
+
+def _set_env_value(env_path: Path, key: str, value: str) -> None:
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    if not env_path.exists():
+        env_path.write_text("")
+    lines = env_path.read_text().splitlines()
+    pattern = re.compile(rf"^{re.escape(key)}=")
+    updated = False
+    new_lines: list[str] = []
+    encoded = value
+    if " " in encoded and not (encoded.startswith('"') and encoded.endswith('"')):
+        encoded = f"\"{encoded}\""
+    for line in lines:
+        if pattern.match(line):
+            new_lines.append(f"{key}={encoded}")
+            updated = True
+        else:
+            new_lines.append(line)
+    if not updated:
+        new_lines.append(f"{key}={encoded}")
+    env_path.write_text("\n".join(new_lines).rstrip() + "\n")
 
 
 def _load_store_catalog(stores_path: str) -> list[dict]:
@@ -138,6 +164,35 @@ def init(
     if not prefs.stores.allowlist:
         console.print("[yellow]Allowlist is empty; all stores will run.[/yellow]")
 
+    if typer.confirm("Configure notifications now?", default=True):
+        from shutil import which
+
+        env_path = Path(".env")
+        enable_macos = typer.confirm("Enable macOS notifications?", default=True)
+        enable_telegram = typer.confirm("Enable Telegram notifications?", default=True)
+
+        _set_env_value(env_path, "NOTIFY_MACOS", str(enable_macos).lower())
+        _set_env_value(env_path, "NOTIFY_TELEGRAM", str(enable_telegram).lower())
+        _set_env_value(env_path, "NOTIFY_EMAIL", "false")
+
+        if enable_macos:
+            mode_default = "terminal-notifier" if which("terminal-notifier") else "osascript"
+            mode = typer.prompt("macOS notification mode (auto/terminal-notifier/osascript)", default=mode_default)
+            _set_env_value(env_path, "NOTIFY_MACOS_MODE", mode)
+
+        if enable_telegram:
+            token = typer.prompt("Telegram bot token (leave blank if not ready)", default="", hide_input=True)
+            chat_id = typer.prompt("Telegram chat ID (leave blank if not ready)", default="")
+            if token:
+                _set_env_value(env_path, "TELEGRAM_BOT_TOKEN", token)
+            if chat_id:
+                _set_env_value(env_path, "TELEGRAM_CHAT_ID", chat_id)
+            if not token or not chat_id:
+                console.print(
+                    "[yellow]Telegram is enabled but missing token/chat ID. "
+                    "Run 'dealintel notify setup' later to add them.[/yellow]"
+                )
+
     if typer.confirm("Run a dry-run now?", default=False):
         from dealintel.jobs.daily import run_daily_pipeline
 
@@ -170,6 +225,75 @@ def gmail_auth() -> None:
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(1)
+
+
+@notify_app.command("setup")
+def notify_setup(env_path: str = typer.Option(".env", help="Path to .env file")) -> None:
+    """Configure notification settings."""
+    from shutil import which
+
+    env_file = Path(env_path)
+    enable_macos = typer.confirm("Enable macOS notifications?", default=True)
+    enable_telegram = typer.confirm("Enable Telegram notifications?", default=True)
+
+    _set_env_value(env_file, "NOTIFY_MACOS", str(enable_macos).lower())
+    _set_env_value(env_file, "NOTIFY_TELEGRAM", str(enable_telegram).lower())
+    _set_env_value(env_file, "NOTIFY_EMAIL", "false")
+
+    if enable_macos:
+        mode_default = "terminal-notifier" if which("terminal-notifier") else "osascript"
+        mode = typer.prompt("macOS notification mode (auto/terminal-notifier/osascript)", default=mode_default)
+        _set_env_value(env_file, "NOTIFY_MACOS_MODE", mode)
+
+    if enable_telegram:
+        token = typer.prompt("Telegram bot token (leave blank if not ready)", default="", hide_input=True)
+        chat_id = typer.prompt("Telegram chat ID (leave blank if not ready)", default="")
+        if token:
+            _set_env_value(env_file, "TELEGRAM_BOT_TOKEN", token)
+        if chat_id:
+            _set_env_value(env_file, "TELEGRAM_CHAT_ID", chat_id)
+        if not token or not chat_id:
+            console.print(
+                "[yellow]Telegram is enabled but missing token/chat ID. "
+                "Run 'dealintel notify setup' again when ready.[/yellow]"
+            )
+
+    console.print(f"[green]Notification settings saved to {env_file}.[/green]")
+
+
+@notify_app.command("test")
+def notify_test() -> None:
+    """Send a test notification via configured channels."""
+    from dealintel.outbound.macos_notify import send_macos_notification
+    from dealintel.outbound.telegram_client import send_telegram_message
+    from dealintel.config import settings
+
+    message = "DealIntel test notification."
+    results = {}
+
+    if settings.notify_macos:
+        results["macos"] = send_macos_notification(
+            title="DealIntel",
+            message=message,
+            subtitle="Notification test",
+        )
+    else:
+        results["macos"] = {"ok": False, "error": "disabled", "method": None}
+
+    if settings.notify_telegram:
+        results["telegram"] = send_telegram_message(message)
+    else:
+        results["telegram"] = {"ok": False, "error": "disabled", "message_id": None}
+
+    table = Table(title="Notification Test Results")
+    table.add_column("Channel", style="cyan")
+    table.add_column("OK", style="green")
+    table.add_column("Details", style="white")
+    for channel, payload in results.items():
+        ok = str(payload.get("ok"))
+        details = payload.get("error") or payload.get("method") or payload.get("message_id") or ""
+        table.add_row(channel, ok, str(details))
+    console.print(table)
 
 
 @sources_app.command("validate")
@@ -497,8 +621,10 @@ def run(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview HTML
             table.add_row("", "Stores", str(stats["digest"].get("store_count", 0)))
             if dry_run and stats["digest"].get("preview_path"):
                 table.add_row("", "Preview", stats["digest"]["preview_path"])
-            elif stats["digest"].get("sent"):
-                table.add_row("", "Sent", "Yes")
+            elif stats["digest"].get("delivered"):
+                table.add_row("", "Delivered", "Yes")
+            elif stats["digest"].get("email_sent"):
+                table.add_row("", "Email sent", "Yes")
 
         console.print(table)
 
@@ -599,8 +725,10 @@ def weekly(dry_run: bool = typer.Option(False, "--dry-run", help="Save preview H
             table.add_row("", "Stores", str(stats["digest"].get("store_count", 0)))
             if dry_run and stats["digest"].get("preview_path"):
                 table.add_row("", "Preview", stats["digest"]["preview_path"])
-            elif stats["digest"].get("sent"):
-                table.add_row("", "Sent", "Yes")
+            elif stats["digest"].get("delivered"):
+                table.add_row("", "Delivered", "Yes")
+            elif stats["digest"].get("email_sent"):
+                table.add_row("", "Email sent", "Yes")
 
         console.print(table)
 

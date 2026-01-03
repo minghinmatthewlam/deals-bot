@@ -2,7 +2,7 @@
 
 Automated promotional email aggregation and daily digest delivery system.
 
-Deal Intelligence monitors your Gmail inbox for promotional emails from configured stores, extracts deal information using AI, deduplicates offers, and sends a daily digest of new and updated promotions.
+Deal Intelligence monitors your Gmail inbox for promotional emails from configured stores, extracts deal information using AI, deduplicates offers, and delivers a digest of new and updated promotions (HTML + notifications).
 
 ---
 
@@ -38,6 +38,12 @@ Optional: interactive setup for store selection.
 .venv/bin/python -m dealintel.cli init
 ```
 
+Test notifications:
+
+```bash
+.venv/bin/dealintel notify test
+```
+
 ---
 
 ## Prerequisites
@@ -46,7 +52,7 @@ Optional: interactive setup for store selection.
 - Docker (for PostgreSQL)
 - Gmail account with API access enabled
 - OpenAI API key
-- SendGrid API key (for email delivery)
+- SendGrid API key (optional, for email delivery)
 - Playwright browsers (for browser automation)
 
 ---
@@ -66,14 +72,14 @@ Required variables:
 | Variable | Description |
 |----------|-------------|
 | `OPENAI_API_KEY` | OpenAI API key for deal extraction |
-| `SENDGRID_API_KEY` | SendGrid API key for digest delivery |
-| `DIGEST_RECIPIENT` | Email address to receive daily digests |
-| `DIGEST_FROM_EMAIL` | Verified sender email in SendGrid |
 
 Optional variables:
 
 | Variable | Description |
 |----------|-------------|
+| `SENDGRID_API_KEY` | SendGrid API key for digest delivery |
+| `DIGEST_RECIPIENT` | Email address to receive digests |
+| `DIGEST_FROM_EMAIL` | Verified sender email in SendGrid |
 | `INGEST_GMAIL` | Enable Gmail ingestion (`true`/`false`) |
 | `INGEST_WEB` | Enable web ingestion (`true`/`false`) |
 | `INGEST_INBOUND` | Enable inbound .eml ingestion (`true`/`false`) |
@@ -86,6 +92,12 @@ Optional variables:
 | `EXTRACT_MAX_EMAILS` | Max pending emails to extract per run (testing throttle) |
 | `WEB_DEFAULT_CRAWL_DELAY_SECONDS` | Default crawl delay between requests |
 | `WEB_DEFAULT_MAX_REQUESTS_PER_RUN` | Max web requests per run |
+| `NOTIFY_EMAIL` | Enable SendGrid email delivery (`true`/`false`) |
+| `NOTIFY_MACOS` | Enable macOS notifications (`true`/`false`) |
+| `NOTIFY_MACOS_MODE` | `auto`, `terminal-notifier`, or `osascript` |
+| `NOTIFY_TELEGRAM` | Enable Telegram notifications (`true`/`false`) |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (required for Telegram notifications) |
+| `TELEGRAM_CHAT_ID` | Telegram chat id (required for Telegram notifications) |
 
 ### 2. Configure Stores
 
@@ -217,7 +229,7 @@ src/dealintel/
 ### Data Flow
 
 ```
-Gmail Inbox → Ingest → Extract (OpenAI) → Merge/Dedupe → Digest → SendGrid
+Gmail Inbox → Ingest → Extract (OpenAI) → Merge/Dedupe → Digest → Notifications (HTML / macOS / Telegram / Email)
 ```
 
 1. **Ingest**: Fetch new emails using Gmail API with historyId cursor
