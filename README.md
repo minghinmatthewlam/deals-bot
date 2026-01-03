@@ -50,6 +50,12 @@ Schedule weekly run (macOS):
 .venv/bin/dealintel schedule weekly --time 12:00 --weekday sun
 ```
 
+Check if a weekly run is still in progress:
+
+```bash
+pgrep -fl "dealintel weekly"
+```
+
 ---
 
 ## Prerequisites
