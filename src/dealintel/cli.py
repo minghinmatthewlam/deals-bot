@@ -21,6 +21,8 @@ sources_app = typer.Typer(help="Source validation helpers.")
 app.add_typer(sources_app, name="sources")
 notify_app = typer.Typer(help="Notification helpers.")
 app.add_typer(notify_app, name="notify")
+schedule_app = typer.Typer(help="Scheduling helpers.")
+app.add_typer(schedule_app, name="schedule")
 
 # Configure structured logging
 structlog.configure(
@@ -294,6 +296,63 @@ def notify_test() -> None:
         details = payload.get("error") or payload.get("method") or payload.get("message_id") or ""
         table.add_row(channel, ok, str(details))
     console.print(table)
+
+
+@schedule_app.command("weekly")
+def schedule_weekly(
+    time: str = typer.Option("12:00", help="Local time in HH:MM (24h)"),
+    weekday: str = typer.Option("sun", help="Weekday name or number (sun/mon/... or 0-6, where 0=Sunday)"),
+    run_now: bool = typer.Option(False, "--run-now", help="Trigger the job immediately after install"),
+    install_only: bool = typer.Option(False, "--install-only", help="Write plist but do not load it"),
+) -> None:
+    """Install a weekly launchd job (macOS)."""
+    from dealintel.schedule.launchd import install_weekly_launchd, run_now as launchd_run_now
+
+    repo_path = Path.cwd()
+
+    try:
+        hour_str, minute_str = time.strip().split(":")
+        hour = int(hour_str)
+        minute = int(minute_str)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except ValueError:
+        console.print("[bold red]Invalid time format. Use HH:MM (24h).[/bold red]")
+        raise typer.Exit(1)
+
+    weekday_map = {
+        "sun": 0,
+        "mon": 1,
+        "tue": 2,
+        "wed": 3,
+        "thu": 4,
+        "fri": 5,
+        "sat": 6,
+    }
+    weekday_clean = weekday.strip().lower()
+    if weekday_clean.isdigit():
+        weekday_val = int(weekday_clean)
+        if weekday_val < 0 or weekday_val > 6:
+            console.print("[bold red]Weekday must be 0-6 (0=Sunday).[/bold red]")
+            raise typer.Exit(1)
+    else:
+        if weekday_clean not in weekday_map:
+            console.print("[bold red]Weekday must be sun/mon/... or 0-6.[/bold red]")
+            raise typer.Exit(1)
+        weekday_val = weekday_map[weekday_clean]
+
+    plist_path = install_weekly_launchd(
+        repo_path=repo_path,
+        hour=hour,
+        minute=minute,
+        weekday=weekday_val,
+        load=not install_only,
+    )
+    console.print(f"[green]Installed weekly launchd job:[/green] {plist_path}")
+
+    if run_now:
+        launchd_run_now()
+        console.print("[green]Triggered weekly job now.[/green]")
 
 
 @sources_app.command("validate")

@@ -44,6 +44,12 @@ Test notifications:
 .venv/bin/dealintel notify test
 ```
 
+Schedule weekly run (macOS):
+
+```bash
+.venv/bin/dealintel schedule weekly --time 12:00 --weekday sun
+```
+
 ---
 
 ## Prerequisites
