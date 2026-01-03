@@ -24,12 +24,14 @@
             <p style="margin: 0 0 8px 0; color: #334155; font-size: 13px;">
                 Generated at: {{ report.generated_at }}
             </p>
+            {% set gmail = report.ingest.gmail if report.ingest and report.ingest.gmail else {} %}
+            {% set web = report.ingest.web if report.ingest and report.ingest.web else {} %}
             <div style="font-size: 13px; color: #334155; line-height: 1.6;">
                 <div><strong>Ingest:</strong>
-                    Gmail fetched {{ report.ingest.gmail.fetched if report.ingest and report.ingest.gmail else 0 }},
-                    Web signals {{ report.ingest.web.signals if report.ingest and report.ingest.web else 0 }},
-                    New {{ report.ingest.web.new if report.ingest and report.ingest.web else 0 }},
-                    Errors {{ report.ingest.web.errors if report.ingest and report.ingest.web else 0 }}
+                    Gmail fetched {{ gmail.fetched if gmail else 0 }},
+                    Web signals {{ web.signals if web else 0 }},
+                    New {{ web.new if web else 0 }},
+                    Errors {{ web.errors if web else 0 }}
                 </div>
                 <div><strong>Extract:</strong>
                     Processed {{ report.extract.processed if report.extract else 0 }},
@@ -42,8 +44,37 @@
                 </div>
             </div>
 
+            {% if gmail %}
+            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #0f172a;">Gmail Ingest Summary</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Fetched</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">New</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Matched</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Filtered</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Skipped</th>
+                        <th style="text-align: left; padding: 6px; border-bottom: 1px solid #e2e8f0;">Errors</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.fetched if gmail else 0 }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.new if gmail else 0 }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.matched if gmail else 0 }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.filtered if gmail else 0 }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.skipped if gmail else 0 }}</td>
+                        <td style="padding: 6px; border-bottom: 1px solid #f1f5f9;">{{ gmail.errors if gmail else 0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 12px;">
+                Gmail ingest is separate from web scraping. Web attempt tables below only cover HTTP/browser sources.
+            </p>
+            {% endif %}
+
             {% if report.web_failures %}
-            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #7f1d1d;">Errors / Non-success Attempts</h3>
+            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #7f1d1d;">Web Errors / Non-success Attempts</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                 <thead>
                     <tr>
@@ -67,7 +98,7 @@
             {% endif %}
 
             {% if report.web_attempts %}
-            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #0f172a;">All Source Attempts</h3>
+            <h3 style="margin: 14px 0 8px 0; font-size: 15px; color: #0f172a;">All Web Source Attempts</h3>
             <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                 <thead>
                     <tr>
