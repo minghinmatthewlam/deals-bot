@@ -1,6 +1,6 @@
 """Configuration management using Pydantic Settings."""
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,17 +21,25 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
 
     # SendGrid
-    sendgrid_api_key: SecretStr
+    sendgrid_api_key: SecretStr | None = Field(default=None, validation_alias="SENDGRID_API_KEY")
 
     # Email addresses
-    sender_email: str
-    recipient_email: str
+    sender_email: str | None = Field(default=None, validation_alias="DIGEST_FROM_EMAIL")
+    recipient_email: str | None = Field(default=None, validation_alias="DIGEST_RECIPIENT")
 
     # Source toggles
     ingest_gmail: bool = False
     ingest_web: bool = True
     ingest_inbound: bool = False
     ingest_ignore_robots: bool = True
+
+    # Notifications
+    notify_email: bool = False
+    notify_macos: bool = True
+    notify_macos_mode: str = "auto"  # auto | terminal-notifier | osascript
+    notify_telegram: bool = True
+    telegram_bot_token: SecretStr | None = None
+    telegram_chat_id: str | None = None
 
     # Web crawl defaults
     web_default_crawl_delay_seconds: float = 30.0

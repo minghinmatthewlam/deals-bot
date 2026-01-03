@@ -19,6 +19,13 @@ def send_digest_email(html: str) -> tuple[bool, str | None]:
         (True, message_id) on success
         (False, None) on failure
     """
+    if not settings.sendgrid_api_key:
+        logger.error("SendGrid API key missing")
+        return False, None
+    if not settings.sender_email or not settings.recipient_email:
+        logger.error("Sender or recipient email missing")
+        return False, None
+
     sg = SendGridAPIClient(settings.sendgrid_api_key.get_secret_value())
 
     subject = f"Deal Digest - {datetime.now().strftime('%B %d')}"
