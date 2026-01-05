@@ -1,6 +1,6 @@
 """Tests for web ingestion (no network calls)."""
 
-from dealintel.web.ingest import _web_message_id
+from dealintel.ingest.keys import signal_message_id
 from dealintel.web.parse import parse_web_html
 
 COS_SAMPLE_HTML = """
@@ -17,13 +17,13 @@ COS_SAMPLE_HTML = """
 
 class TestWebMessageId:
     def test_deterministic(self):
-        id1 = _web_message_id("https://example.com", "abc123")
-        id2 = _web_message_id("https://example.com", "abc123")
+        id1 = signal_message_id("https://example.com", "abc123")
+        id2 = signal_message_id("https://example.com", "abc123")
         assert id1 == id2
 
     def test_format(self):
-        msg_id = _web_message_id("https://example.com", "abcdef123456")
-        assert msg_id.startswith("web:")
+        msg_id = signal_message_id("https://example.com", "abcdef123456")
+        assert msg_id.startswith("signal:")
         parts = msg_id.split(":")
         assert len(parts) == 3
 
