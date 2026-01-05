@@ -266,32 +266,25 @@ def notify_setup(env_path: str = typer.Option(".env", help="Path to .env file"))
 @notify_app.command("test")
 def notify_test() -> None:
     """Send a test notification via configured channels."""
-    from dealintel.outbound.macos_notify import send_macos_notification
-    from dealintel.outbound.telegram_client import send_telegram_message
-    from dealintel.config import settings
+    from dealintel.outbound.notifications import DigestNotification, deliver_digest_notifications
 
-    message = "DealIntel test notification."
-    results = {}
-
-    if settings.notify_macos:
-        results["macos"] = send_macos_notification(
-            title="DealIntel",
-            message=message,
-            subtitle="Notification test",
-        )
-    else:
-        results["macos"] = {"ok": False, "error": "disabled", "method": None}
-
-    if settings.notify_telegram:
-        results["telegram"] = send_telegram_message(message)
-    else:
-        results["telegram"] = {"ok": False, "error": "disabled", "message_id": None}
+    payload = DigestNotification(
+        date_label="test",
+        promo_count=0,
+        store_count=0,
+        items=[],
+        html_path=None,
+    )
+    test_html = "<p>DealIntel test notification.</p>"
+    results = deliver_digest_notifications(payload, html=test_html)
 
     table = Table(title="Notification Test Results")
     table.add_column("Channel", style="cyan")
     table.add_column("OK", style="green")
     table.add_column("Details", style="white")
     for channel, payload in results.items():
+        if channel in {"summary", "delivered", "email_message_id"}:
+            continue
         ok = str(payload.get("ok"))
         details = payload.get("error") or payload.get("method") or payload.get("message_id") or ""
         table.add_row(channel, ok, str(details))

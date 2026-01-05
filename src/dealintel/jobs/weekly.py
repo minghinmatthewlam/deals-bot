@@ -9,7 +9,6 @@ from typing import Any
 import pytz  # type: ignore[import-untyped]
 import structlog
 
-from dealintel.config import settings
 from dealintel.db import acquire_advisory_lock, get_db, release_advisory_lock
 from dealintel.digest.render import generate_digest
 from dealintel.digest.report import build_digest_report
@@ -19,8 +18,7 @@ from dealintel.jobs.daily import process_pending_emails
 from dealintel.models import Run
 from dealintel.newsletter.agent import NewsletterAgent
 from dealintel.newsletter.confirmations import poll_confirmations
-from dealintel.outbound.notifications import send_digest_notifications
-from dealintel.outbound.sendgrid_client import send_digest_email
+from dealintel.outbound.notifications import DigestNotification, deliver_digest_notifications
 from dealintel.promos.merge import merge_extracted_promos
 from dealintel.reports.source_report import render_source_report
 from dealintel.seed import seed_stores
@@ -162,30 +160,25 @@ def run_weekly_pipeline(dry_run: bool = False) -> dict[str, Any]:
                     logger.info("Digest preview saved", path=str(preview_path))
                     stats["digest"]["preview_path"] = str(preview_path)
                 else:
-                    notification_results = send_digest_notifications(
+                    payload = DigestNotification(
                         date_label=today_et,
                         promo_count=promo_count,
                         store_count=store_count,
                         items=stats["digest"]["items"],
                         html_path=archive_path,
                     )
+                    notification_results = deliver_digest_notifications(payload, html)
                     stats["notifications"] = notification_results
 
-                    email_success = False
-                    msg_id = None
-                    if settings.notify_email:
-                        email_success, msg_id = send_digest_email(html)
-                        stats["digest"]["email_sent"] = email_success
-                        stats["digest"]["email_message_id"] = msg_id
-
-                    delivered = False
-                    delivered = delivered or email_success
-                    delivered = delivered or bool(notification_results.get("macos", {}).get("ok"))
-                    delivered = delivered or bool(notification_results.get("telegram", {}).get("ok"))
+                    delivered = bool(notification_results.get("delivered"))
+                    email_message_id = notification_results.get("email_message_id")
+                    if notification_results.get("email"):
+                        stats["digest"]["email_sent"] = bool(notification_results["email"].get("ok"))
+                        stats["digest"]["email_message_id"] = email_message_id
 
                     if delivered:
                         run.digest_sent_at = datetime.now(UTC)
-                        run.digest_provider_id = msg_id or "notifications"
+                        run.digest_provider_id = email_message_id or "notifications"
                         stats["digest"]["delivered"] = True
                         promo_ids = [item["promo"].id for item in selected_promos]
                         stats["digest"]["notified"] = mark_promos_notified(promo_ids, run.digest_sent_at)
