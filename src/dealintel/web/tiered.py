@@ -16,7 +16,7 @@ from dealintel.ingest.signals import RawSignal
 from dealintel.models import EmailRaw, RawSignalRecord, SourceConfig, Store, StoreSource
 from dealintel.prefs import get_store_allowlist
 from dealintel.storage.payloads import ensure_blob_record, prepare_payload
-from dealintel.web.adapters.base import AdapterError, SourceResultStatus, SourceTier
+from dealintel.web.adapters.base import AdapterError, SourceResultStatus
 from dealintel.web.adapters.browser import BrowserAdapter
 from dealintel.web.adapters.category import CategoryPageAdapter
 from dealintel.web.adapters.json_endpoint import JsonEndpointAdapter

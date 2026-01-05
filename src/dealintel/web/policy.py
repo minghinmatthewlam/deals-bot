@@ -8,8 +8,8 @@ from urllib.robotparser import RobotFileParser
 
 import structlog
 
-from dealintel.web.fetch import USER_AGENT
 from dealintel.config import settings
+from dealintel.web.fetch import USER_AGENT
 
 logger = structlog.get_logger()
 
