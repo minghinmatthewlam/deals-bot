@@ -56,6 +56,13 @@ Check if a weekly run is still in progress:
 pgrep -fl "dealintel weekly"
 ```
 
+View or remove the weekly schedule:
+
+```bash
+.venv/bin/dealintel schedule status
+.venv/bin/dealintel schedule uninstall
+```
+
 ---
 
 ## Prerequisites
