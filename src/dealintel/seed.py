@@ -1,13 +1,12 @@
 """Store seeding from stores.yaml."""
 
+import json
 from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
 from dealintel.db import get_db
-import json
-
 from dealintel.models import SourceConfig, Store, StoreSource
 
 SOURCE_TYPE_ALIASES = {

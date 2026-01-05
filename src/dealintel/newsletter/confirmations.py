@@ -12,9 +12,9 @@ from googleapiclient.errors import HttpError  # type: ignore[import-untyped]
 
 from dealintel.browser.runner import BrowserRunner
 from dealintel.db import get_db
-from dealintel.human_assist import HumanAssistQueue
 from dealintel.gmail.ingest import fetch_by_date, fetch_via_history, get_gmail_service, match_store
 from dealintel.gmail.parse import parse_body, parse_from_address, parse_headers
+from dealintel.human_assist import HumanAssistQueue
 from dealintel.models import InboxState, NewsletterConfirmation, NewsletterSubscription
 
 logger = structlog.get_logger()

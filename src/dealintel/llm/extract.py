@@ -9,8 +9,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from dealintel.config import settings
 from dealintel.llm.schemas import ExtractionResult
 from dealintel.models import EmailRaw
-from dealintel.storage.payloads import get_email_body
 from dealintel.prefs import load_preferences
+from dealintel.storage.payloads import get_email_body
 
 logger = structlog.get_logger()
 
