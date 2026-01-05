@@ -348,6 +348,44 @@ def schedule_weekly(
         console.print("[green]Triggered weekly job now.[/green]")
 
 
+@schedule_app.command("status")
+def schedule_status() -> None:
+    """Show weekly launchd job status (macOS)."""
+    from dealintel.schedule.launchd import get_weekly_status
+
+    status = get_weekly_status()
+    if not status.get("installed"):
+        console.print("[yellow]Weekly schedule not installed.[/yellow]")
+        return
+
+    table = Table(title="Weekly Schedule Status")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="white")
+
+    for key in ("plist_path", "state", "pid", "last_exit_code", "runs"):
+        if key in status:
+            table.add_row(key.replace("_", " ").title(), str(status.get(key)))
+
+    if status.get("weekday") is not None:
+        table.add_row("Weekday", str(status.get("weekday")))
+    if status.get("hour") is not None and status.get("minute") is not None:
+        table.add_row("Time", f"{status.get('hour'):02d}:{status.get('minute'):02d}")
+
+    console.print(table)
+
+
+@schedule_app.command("uninstall")
+def schedule_uninstall() -> None:
+    """Remove the weekly launchd job (macOS)."""
+    from dealintel.schedule.launchd import uninstall_weekly_launchd
+
+    result = uninstall_weekly_launchd()
+    if result.get("ok"):
+        console.print("[green]Weekly schedule removed.[/green]")
+    else:
+        console.print(f"[yellow]Weekly schedule not removed:[/yellow] {result.get('error')}")
+
+
 @sources_app.command("validate")
 def validate_sources(
     store: str | None = typer.Option(None, "--store", help="Limit to a store slug"),

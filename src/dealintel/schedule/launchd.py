@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import plistlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -12,6 +13,8 @@ logger = structlog.get_logger()
 
 
 DEFAULT_PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+PLIST_NAME = "com.dealintel.weekly.plist"
+JOB_LABEL = "com.dealintel.weekly"
 
 
 def _resolve_program_args(repo_path: Path) -> list[str]:
@@ -62,7 +65,7 @@ def install_weekly_launchd(
     logs_dir = repo_path / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    plist_path = agents_dir / "com.dealintel.weekly.plist"
+    plist_path = agents_dir / PLIST_NAME
     plist_bytes = build_weekly_plist(repo_path, logs_dir, hour, minute, weekday)
     plist_path.write_bytes(plist_bytes)
 
@@ -80,4 +83,59 @@ def _reload_launchd(plist_path: Path) -> None:
 
 
 def run_now() -> None:
-    subprocess.run(["launchctl", "start", "com.dealintel.weekly"], check=False)
+    subprocess.run(["launchctl", "start", JOB_LABEL], check=False)
+
+
+def uninstall_weekly_launchd() -> dict[str, str | bool | None]:
+    agents_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_path = agents_dir / PLIST_NAME
+    if not plist_path.exists():
+        return {"ok": False, "error": "not_installed"}
+    subprocess.run(["launchctl", "unload", str(plist_path)], check=False)
+    plist_path.unlink(missing_ok=True)
+    return {"ok": True, "error": None}
+
+
+def get_weekly_status() -> dict[str, str | int | bool | None]:
+    agents_dir = Path.home() / "Library" / "LaunchAgents"
+    plist_path = agents_dir / PLIST_NAME
+    if not plist_path.exists():
+        return {"installed": False}
+
+    payload = {"installed": True, "plist_path": str(plist_path)}
+    try:
+        plist_data = plistlib.loads(plist_path.read_bytes())
+        schedule = plist_data.get("StartCalendarInterval", {})
+        payload["weekday"] = schedule.get("Weekday")
+        payload["hour"] = schedule.get("Hour")
+        payload["minute"] = schedule.get("Minute")
+    except Exception:
+        pass
+
+    uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
+    result = subprocess.run(
+        ["launchctl", "print", f"gui/{uid}/{JOB_LABEL}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        payload["loaded"] = False
+        payload["error"] = result.stderr.strip() or "launchctl_print_failed"
+        return payload
+
+    output = result.stdout
+    payload["loaded"] = True
+    state_match = re.search(r"state = ([^\n]+)", output)
+    pid_match = re.search(r"\bpid = (\\d+)", output)
+    exit_match = re.search(r"last exit code = (\\d+)", output)
+    runs_match = re.search(r"runs = (\\d+)", output)
+    if state_match:
+        payload["state"] = state_match.group(1).strip()
+    if pid_match:
+        payload["pid"] = int(pid_match.group(1))
+    if exit_match:
+        payload["last_exit_code"] = int(exit_match.group(1))
+    if runs_match:
+        payload["runs"] = int(runs_match.group(1))
+    return payload
