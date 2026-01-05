@@ -3,6 +3,7 @@
 from urllib.robotparser import RobotFileParser
 
 from dealintel.web import ingest as web_ingest
+from dealintel.web import policy as web_policy
 
 
 def test_rate_limit_sleeps_when_needed():
@@ -23,31 +24,34 @@ def test_rate_limit_sleeps_when_needed():
     assert sleeps == [20.0]
 
 
-def test_robots_disallow_blocks():
-    web_ingest._robots_cache.clear()
+def test_robots_disallow_blocks(monkeypatch):
+    web_policy._robots_cache.clear()
+    monkeypatch.setattr(web_policy.settings, "ingest_ignore_robots", False)
 
     parser = RobotFileParser()
     parser.disallow_all = True
-    web_ingest._robots_cache["example.com"] = parser
+    web_policy._robots_cache["example.com"] = parser
 
     assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=False) is False
 
 
-def test_robots_allow_all_passes():
-    web_ingest._robots_cache.clear()
+def test_robots_allow_all_passes(monkeypatch):
+    web_policy._robots_cache.clear()
+    monkeypatch.setattr(web_policy.settings, "ingest_ignore_robots", False)
 
     parser = RobotFileParser()
     parser.allow_all = True
-    web_ingest._robots_cache["example.com"] = parser
+    web_policy._robots_cache["example.com"] = parser
 
     assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=False) is True
 
 
-def test_ignore_robots_overrides_disallow():
-    web_ingest._robots_cache.clear()
+def test_ignore_robots_overrides_disallow(monkeypatch):
+    web_policy._robots_cache.clear()
+    monkeypatch.setattr(web_policy.settings, "ingest_ignore_robots", False)
 
     parser = RobotFileParser()
     parser.disallow_all = True
-    web_ingest._robots_cache["example.com"] = parser
+    web_policy._robots_cache["example.com"] = parser
 
     assert web_ingest._is_allowed_by_robots("https://example.com/deals", ignore_robots=True) is True

@@ -16,9 +16,12 @@ class TestSelectDigestPromos:
             mock_get_db.return_value.__enter__ = lambda s: db_session
             mock_get_db.return_value.__exit__ = MagicMock(return_value=False)
 
-            with patch("dealintel.digest.select.get_last_digest_time") as mock_time:
+            with patch("dealintel.digest.select.get_last_digest_time") as mock_time, patch(
+                "dealintel.digest.select.get_store_allowlist"
+            ) as mock_allowlist:
                 # Last digest was 1 hour ago
                 mock_time.return_value = datetime.now(UTC) - timedelta(hours=1)
+                mock_allowlist.return_value = set()
 
                 promos = select_digest_promos()
 
@@ -41,9 +44,12 @@ class TestSelectDigestPromos:
             mock_get_db.return_value.__enter__ = lambda s: db_session
             mock_get_db.return_value.__exit__ = MagicMock(return_value=False)
 
-            with patch("dealintel.digest.select.get_last_digest_time") as mock_time:
+            with patch("dealintel.digest.select.get_last_digest_time") as mock_time, patch(
+                "dealintel.digest.select.get_store_allowlist"
+            ) as mock_allowlist:
                 # Last digest was 1 day ago
                 mock_time.return_value = datetime.now(UTC) - timedelta(days=1)
+                mock_allowlist.return_value = set()
 
                 promos = select_digest_promos()
 
