@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import time
 from typing import Any
 
 from dealintel.ingest.signals import RawSignal

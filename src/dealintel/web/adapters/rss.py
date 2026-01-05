@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import time
 from typing import Any
 
 import structlog
@@ -13,10 +13,10 @@ from dealintel.ingest.signals import RawSignal
 from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
 from dealintel.web.budget import RequestBudget
 from dealintel.web.fetch import FetchResult, fetch_url
-from dealintel.web.policy import check_robots_policy
-from dealintel.web.rate_limit import RateLimiter
 from dealintel.web.parse import parse_web_html
 from dealintel.web.parse_feed import parse_rss_feed
+from dealintel.web.policy import check_robots_policy
+from dealintel.web.rate_limit import RateLimiter
 
 logger = structlog.get_logger()
 

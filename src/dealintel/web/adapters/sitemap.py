@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -16,10 +16,10 @@ from dealintel.ingest.signals import RawSignal
 from dealintel.web.adapters.base import AdapterError, SourceResult, SourceResultStatus, SourceStatus, SourceTier
 from dealintel.web.budget import RequestBudget
 from dealintel.web.fetch import FetchResult, fetch_url
-from dealintel.web.policy import check_robots_policy
-from dealintel.web.rate_limit import RateLimiter
 from dealintel.web.parse import parse_web_html
 from dealintel.web.parse_sale import format_sale_summary_for_extraction, parse_sale_page
+from dealintel.web.policy import check_robots_policy
+from dealintel.web.rate_limit import RateLimiter
 
 logger = structlog.get_logger()
 
