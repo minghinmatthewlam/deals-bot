@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import structlog
 import httpx
+import structlog
 
 from dealintel.config import settings
 

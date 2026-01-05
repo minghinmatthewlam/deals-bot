@@ -1,14 +1,13 @@
 """CLI entry point using Typer."""
 
 import re
-import structlog
-import typer
 from pathlib import Path
 
+import structlog
+import typer
+import yaml  # type: ignore[import-untyped]
 from rich.console import Console
 from rich.table import Table
-
-import yaml  # type: ignore[import-untyped]
 
 app = typer.Typer(
     name="dealintel",
@@ -299,7 +298,8 @@ def schedule_weekly(
     install_only: bool = typer.Option(False, "--install-only", help="Write plist but do not load it"),
 ) -> None:
     """Install a weekly launchd job (macOS)."""
-    from dealintel.schedule.launchd import install_weekly_launchd, run_now as launchd_run_now
+    from dealintel.schedule.launchd import install_weekly_launchd
+    from dealintel.schedule.launchd import run_now as launchd_run_now
 
     repo_path = Path.cwd()
 
@@ -435,7 +435,7 @@ def debug_source(
 ) -> None:
     """Run a single source adapter and print its result."""
     from dealintel.db import get_db
-    from dealintel.models import SourceConfig, Store
+    from dealintel.models import Store
     from dealintel.web.rate_limit import RateLimiter
     from dealintel.web.tiered import build_adapter
 

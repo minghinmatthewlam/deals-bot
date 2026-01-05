@@ -16,8 +16,8 @@ from dealintel.ingest.dedupe import dedupe_pending_emails
 from dealintel.ingest.router import ingest_all_sources
 from dealintel.llm.extract import extract_promos
 from dealintel.models import EmailRaw, PromoExtraction, Run, Store
-from dealintel.prefs import get_store_allowlist
 from dealintel.outbound.notifications import DigestNotification, deliver_digest_notifications
+from dealintel.prefs import get_store_allowlist
 from dealintel.promos.merge import merge_extracted_promos
 from dealintel.seed import seed_stores
 
