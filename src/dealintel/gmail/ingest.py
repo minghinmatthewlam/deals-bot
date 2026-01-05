@@ -134,9 +134,7 @@ def ingest_emails() -> dict[str, int]:
         allowlist = get_store_allowlist()
         allowed_store_ids = None
         if allowlist:
-            allowed_store_ids = {
-                store.id for store in session.query(Store).filter(Store.slug.in_(allowlist)).all()
-            }
+            allowed_store_ids = {store.id for store in session.query(Store).filter(Store.slug.in_(allowlist)).all()}
 
         if state.last_history_id:
             # Incremental sync

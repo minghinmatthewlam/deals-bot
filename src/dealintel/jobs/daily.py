@@ -35,9 +35,7 @@ def process_pending_emails() -> dict[str, int]:
     with get_db() as session:
         stats["skipped_duplicates"] = dedupe_pending_emails(session)
         pending_query = (
-            session.query(EmailRaw)
-            .filter_by(extraction_status="pending")
-            .order_by(EmailRaw.received_at.desc())
+            session.query(EmailRaw).filter_by(extraction_status="pending").order_by(EmailRaw.received_at.desc())
         )
         allowlist = get_store_allowlist()
         if allowlist:

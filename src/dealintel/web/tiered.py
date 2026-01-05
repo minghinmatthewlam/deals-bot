@@ -290,9 +290,7 @@ def _persist_signals(session: Session, store: Store, signals: list[RawSignal]) -
         ensure_blob_record(session, payload)
 
         existing_email = (
-            session.query(EmailRaw)
-            .filter_by(store_id=store.id, signal_key=signal_key, body_hash=body_hash)
-            .first()
+            session.query(EmailRaw).filter_by(store_id=store.id, signal_key=signal_key, body_hash=body_hash).first()
         )
         existing_signal = (
             session.query(RawSignalRecord)

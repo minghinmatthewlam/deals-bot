@@ -9,12 +9,7 @@ from dealintel.models import EmailRaw
 
 def dedupe_pending_emails(session: Session) -> int:
     """Mark duplicate pending emails to avoid double LLM extraction."""
-    pending = (
-        session.query(EmailRaw)
-        .filter_by(extraction_status="pending")
-        .order_by(EmailRaw.received_at.desc())
-        .all()
-    )
+    pending = session.query(EmailRaw).filter_by(extraction_status="pending").order_by(EmailRaw.received_at.desc()).all()
 
     seen: set[tuple[str | None, str]] = set()
     skipped = 0

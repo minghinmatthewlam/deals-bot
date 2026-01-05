@@ -192,9 +192,7 @@ class RssAdapter:
         return SourceResult(
             status=status,
             signals=signals,
-            message="rss ok"
-            if signals
-            else ("request budget exhausted" if budget_exhausted else "no entries"),
+            message="rss ok" if signals else ("request budget exhausted" if budget_exhausted else "no entries"),
             error_code="budget_exhausted" if budget_exhausted else None,
             http_requests=http_requests,
             bytes_read=bytes_read,

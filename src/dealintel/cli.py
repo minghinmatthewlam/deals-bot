@@ -45,7 +45,7 @@ def _set_env_value(env_path: Path, key: str, value: str) -> None:
     new_lines: list[str] = []
     encoded = value
     if " " in encoded and not (encoded.startswith('"') and encoded.endswith('"')):
-        encoded = f"\"{encoded}\""
+        encoded = f'"{encoded}"'
     for line in lines:
         if pattern.match(line):
             new_lines.append(f"{key}={encoded}")
@@ -513,9 +513,7 @@ def report_sources(
     allowlist = get_store_allowlist()
     with get_db() as session:
         query = (
-            session.query(SourceConfig, Store)
-            .join(Store)
-            .filter(SourceConfig.active == True)  # noqa: E712
+            session.query(SourceConfig, Store).join(Store).filter(SourceConfig.active == True)  # noqa: E712
         )
         if store:
             query = query.filter(Store.slug == store)
@@ -595,8 +593,7 @@ def search_stores(
     matches = [
         store
         for store in stores
-        if query_lower in (store.get("slug", "").lower())
-        or query_lower in (store.get("name", "").lower())
+        if query_lower in (store.get("slug", "").lower()) or query_lower in (store.get("name", "").lower())
     ]
     table = Table(title=f"Stores matching '{query}'")
     table.add_column("Slug", style="white")

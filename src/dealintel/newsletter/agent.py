@@ -37,11 +37,7 @@ class NewsletterAgent:
         stats = {"attempted": 0, "submitted": 0, "confirmed": 0, "failed": 0}
 
         with get_db() as session:
-            configs = (
-                session.query(SourceConfig)
-                .filter_by(source_type="newsletter", active=True)
-                .all()
-            )
+            configs = session.query(SourceConfig).filter_by(source_type="newsletter", active=True).all()
             allowlist = get_store_allowlist()
 
             for config in configs:
@@ -68,9 +64,7 @@ class NewsletterAgent:
             return SubscribeResult(ok=False, status="failed", message="missing signup_url")
 
         subscription = (
-            session.query(NewsletterSubscription)
-            .filter_by(store_id=store.id, email_address=self.service_email)
-            .first()
+            session.query(NewsletterSubscription).filter_by(store_id=store.id, email_address=self.service_email).first()
         )
 
         if subscription and subscription.status == "confirmed":
@@ -96,7 +90,9 @@ class NewsletterAgent:
             return SubscribeResult(ok=False, status="failed", message=str(exc))
 
         subscription.status = "pending"
-        subscription.state = "AWAITING_CONFIRMATION_EMAIL" if config.get("expected_confirm", True) else "SUBSCRIBED_CONFIRMED"
+        subscription.state = (
+            "AWAITING_CONFIRMATION_EMAIL" if config.get("expected_confirm", True) else "SUBSCRIBED_CONFIRMED"
+        )
         subscription.subscribed_at = datetime.now(UTC)
         subscription.last_attempt_at = datetime.now(UTC)
 
@@ -155,7 +151,9 @@ class NewsletterAgent:
                 submit.first.click()
                 page.wait_for_timeout(2000)
 
-                trace_path = self.runner.trace_dir / f"newsletter_trace_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.zip"
+                trace_path = (
+                    self.runner.trace_dir / f"newsletter_trace_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.zip"
+                )
                 context.tracing.stop(path=str(trace_path))
             finally:
                 context.close()

@@ -173,10 +173,7 @@ def click_pending_confirmations(limit: int = 25) -> dict[str, int | str]:
 
     with get_db() as session:
         pending = (
-            session.query(NewsletterConfirmation)
-            .filter(NewsletterConfirmation.status == "pending")
-            .limit(limit)
-            .all()
+            session.query(NewsletterConfirmation).filter(NewsletterConfirmation.status == "pending").limit(limit).all()
         )
 
         for item in pending:

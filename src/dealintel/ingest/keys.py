@@ -9,11 +9,7 @@ from dealintel.promos.normalize import normalize_url
 
 
 def compute_signal_key(signal: RawSignal) -> str:
-    candidate = (
-        signal.metadata.get("canonical_url")
-        if isinstance(signal.metadata, dict)
-        else None
-    )
+    candidate = signal.metadata.get("canonical_url") if isinstance(signal.metadata, dict) else None
     if not candidate:
         candidate = signal.url
     normalized = normalize_url(candidate or "")
