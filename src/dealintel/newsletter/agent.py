@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -20,6 +21,50 @@ from dealintel.prefs import get_store_allowlist
 logger = structlog.get_logger()
 
 
+# Clawdbot agent prompt template
+CLAWDBOT_SUBSCRIBE_PROMPT = """
+I need you to sign up for a newsletter. Here are the details:
+
+**Store**: {store_name}
+**Signup URL**: {signup_url}
+**Email to use**: {email}
+
+## Instructions
+
+1. Navigate to the signup URL using the browser tool
+2. Take a snapshot to see the page structure
+3. Find the newsletter form - look for:
+   - Email input fields (often in footer, sidebar, or popup)
+   - Labels like "Newsletter", "Sign up", "Subscribe", "Get deals"
+4. Fill in the email address
+5. Check any required checkboxes (consent, terms)
+6. Submit the form
+7. Take a screenshot to confirm
+
+## Handling Issues
+
+- Close cookie consent banners first
+- If newsletter is in a popup, interact with it
+- Look for "Subscribe" links in navigation or footer
+- Try scrolling to trigger popups
+
+## CAPTCHA
+
+If you encounter a CAPTCHA:
+1. Take a screenshot showing it
+2. Describe what you see
+3. Say "CAPTCHA_HELP_NEEDED" and wait for help via messaging
+
+## Output
+
+End with one of:
+- `STATUS: SUCCESS` - Signup completed
+- `STATUS: CAPTCHA_WAITING` - Need human help
+- `STATUS: FORM_NOT_FOUND` - Could not find form
+- `STATUS: FAILED - <reason>` - Other failure
+"""
+
+
 @dataclass(frozen=True)
 class SubscribeResult:
     ok: bool
@@ -32,6 +77,102 @@ class NewsletterAgent:
         self.service_email = service_email or settings.newsletter_service_email or settings.sender_email
         self.runner = BrowserRunner()
         self.queue = HumanAssistQueue()
+        self._clawdbot_checked = False
+        self._clawdbot_available = False
+
+    def _check_clawdbot(self) -> bool:
+        """Check if Clawdbot is available (cached for the session)."""
+        if self._clawdbot_checked:
+            return self._clawdbot_available
+
+        self._clawdbot_checked = True
+
+        if not settings.clawdbot_enabled:
+            logger.debug("clawdbot.disabled")
+            self._clawdbot_available = False
+            return False
+
+        from dealintel.clawdbot import clawdbot_available
+
+        self._clawdbot_available = clawdbot_available()
+        if self._clawdbot_available:
+            logger.info("clawdbot.available", url=settings.clawdbot_gateway_url)
+        else:
+            logger.info("clawdbot.not_running", url=settings.clawdbot_gateway_url)
+
+        return self._clawdbot_available
+
+    def _subscribe_via_clawdbot(self, store: Store, signup_url: str) -> SubscribeResult | None:
+        """
+        Try to subscribe using Clawdbot agent.
+
+        Returns SubscribeResult if Clawdbot handled it, None to fall back to Playwright.
+        """
+        if not self._check_clawdbot():
+            return None
+
+        prompt = CLAWDBOT_SUBSCRIBE_PROMPT.format(
+            store_name=store.name,
+            signup_url=signup_url,
+            email=self.service_email,
+        )
+
+        try:
+            from dealintel.clawdbot import ClawdbotClient
+
+            # Run async code in sync context
+            result = asyncio.get_event_loop().run_until_complete(
+                self._run_clawdbot_agent(prompt)
+            )
+            return result
+        except RuntimeError:
+            # No event loop - create one
+            result = asyncio.run(self._run_clawdbot_agent(prompt))
+            return result
+        except Exception as e:
+            logger.warning("clawdbot.error", error=str(e), store=store.name)
+            return None  # Fall back to Playwright
+
+    async def _run_clawdbot_agent(self, prompt: str) -> SubscribeResult | None:
+        """Run the Clawdbot agent and parse the result."""
+        from dealintel.clawdbot import ClawdbotClient
+
+        try:
+            async with ClawdbotClient() as client:
+                result = await client.run_agent(prompt)
+        except ConnectionError as e:
+            logger.warning("clawdbot.connection_failed", error=str(e))
+            return None
+
+        if not result.success:
+            if result.error and "timeout" in result.error.lower():
+                return SubscribeResult(ok=False, status="failed", message=f"Clawdbot timeout: {result.error}")
+            logger.warning("clawdbot.agent_failed", error=result.error)
+            return None  # Fall back to Playwright
+
+        # Parse agent response
+        response_lower = result.response.lower()
+
+        if "status: success" in response_lower:
+            return SubscribeResult(ok=True, status="awaiting_confirmation")
+
+        if "status: captcha_waiting" in response_lower or "captcha_help_needed" in response_lower:
+            # Clawdbot will handle human-in-loop via WhatsApp/Telegram
+            return SubscribeResult(ok=False, status="failed", message="CAPTCHA - Clawdbot awaiting human help")
+
+        if "status: form_not_found" in response_lower:
+            return SubscribeResult(ok=False, status="failed", message="Form not found by Clawdbot agent")
+
+        if "status: failed" in response_lower:
+            return SubscribeResult(ok=False, status="failed", message=f"Clawdbot: {result.response[:200]}")
+
+        # Infer from content
+        if any(word in response_lower for word in ["success", "subscribed", "signed up"]):
+            return SubscribeResult(ok=True, status="awaiting_confirmation")
+
+        # Unclear result - fall back to Playwright
+        logger.warning("clawdbot.unclear_result", response=result.response[:200])
+        return None
 
     def subscribe_all(self) -> dict[str, int]:
         stats = {"attempted": 0, "submitted": 0, "confirmed": 0, "failed": 0}
@@ -80,6 +221,26 @@ class NewsletterAgent:
             session.add(subscription)
             session.flush()
 
+        # Try Clawdbot first if enabled and running
+        clawdbot_result = self._subscribe_via_clawdbot(store, signup_url)
+        if clawdbot_result is not None:
+            # Clawdbot handled it (success or definitive failure)
+            logger.info("newsletter.clawdbot_handled", store=store.name, ok=clawdbot_result.ok)
+            if clawdbot_result.ok:
+                subscription.status = "pending"
+                subscription.state = "AWAITING_CONFIRMATION_EMAIL"
+                subscription.subscribed_at = datetime.now(UTC)
+                subscription.last_attempt_at = datetime.now(UTC)
+                return clawdbot_result
+            else:
+                subscription.status = "failed"
+                subscription.state = "FAILED_NEEDS_HUMAN"
+                subscription.last_error = clawdbot_result.message
+                subscription.last_attempt_at = datetime.now(UTC)
+                return clawdbot_result
+
+        # Fall back to Playwright
+        logger.info("newsletter.playwright_fallback", store=store.name)
         try:
             self._submit_form(signup_url, config)
         except PlaywrightError as exc:

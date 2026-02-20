@@ -1,4 +1,4 @@
-Read `~/dev/agent-guards/AGENTS.md` for global guidelines.
+Always read `~/dev/agent-guards/AGENTS.md` first before any repo-specific instructions.
 
 ---
 

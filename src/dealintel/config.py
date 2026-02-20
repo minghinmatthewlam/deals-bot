@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # Newsletter automation
     newsletter_service_email: str | None = None
 
+    # Clawdbot integration (optional - falls back to Playwright if unavailable)
+    clawdbot_enabled: bool = False
+    clawdbot_gateway_url: str = "ws://127.0.0.1:18789"
+    clawdbot_token: str | None = None
+    clawdbot_timeout_seconds: int = 180  # 3 minutes for interactive tasks
+
     # Gmail OAuth
     gmail_credentials_path: str = "credentials.json"
     gmail_token_path: str = "token.json"
